@@ -244,9 +244,24 @@ class AutocompleteEngine:
     
     # Common commands
     COMMANDS = [
-        "/help", "/keys", "/models", "/provider", "/model", "/backtest",
-        "/status", "/export", "/clear", "/compare", "/chart", "/report",
-        "/alert", "/watchlist", "/portfolio", "/strategy", "/preset",
+        "/help",
+        "/keys",
+        "/models",
+        "/provider",
+        "/model",
+        "/backtest",
+        "/status",
+        "/tools",
+        "/export",
+        "/clear",
+        "/compare",
+        "/chart",
+        "/report",
+        "/alert",
+        "/watchlist",
+        "/portfolio",
+        "/strategy",
+        "/preset",
     ]
     
     # Common phrases
@@ -285,43 +300,46 @@ class AutocompleteEngine:
     ]
     
     @classmethod
-    def get_suggestions(cls, text: str, max_results: int = 10) -> List[str]:
+    def get_suggestions(cls, text: str, max_results: int = 12) -> List[str]:
         """Get autocomplete suggestions for partial input."""
-        text = text.lower().strip()
-        suggestions = []
-        
-        # Command completion
-        if text.startswith("/"):
-            suggestions.extend([
-                cmd for cmd in cls.COMMANDS
-                if cmd.lower().startswith(text)
-            ])
-        
-        # Ticker completion
-        words = text.split()
+        raw = text.strip()
+        low = raw.lower()
+        suggestions: List[str] = []
+
+        # Slash commands: dedicated path (no ticker/phrase noise)
+        if low.startswith("/"):
+            if low == "/":
+                suggestions.extend(cls.COMMANDS)
+            else:
+                suggestions.extend(
+                    [cmd for cmd in cls.COMMANDS if cmd.lower().startswith(low)]
+                )
+            return suggestions[:max_results]
+
+        text_lc = low
+        words = text_lc.split()
+
+        # Ticker completion on last token
         if words:
             last_word = words[-1].upper()
-            if len(last_word) >= 1:
-                matching_tickers = [
-                    t for t in cls.TICKERS
-                    if t.startswith(last_word)
-                ]
-                suggestions.extend([
-                    " ".join(words[:-1] + [t]) for t in matching_tickers
-                ])
-        
-        # Strategy completion
-        if "backtest" in text or "strategy" in text:
-            for strategy in cls.STRATEGIES:
-                if strategy not in text:
-                    suggestions.append(text + " " + strategy)
-        
-        # Phrase completion
+            if len(last_word) >= 1 and last_word.isalnum():
+                matching_tickers = [t for t in cls.TICKERS if t.startswith(last_word)]
+                suggestions.extend(
+                    [" ".join(words[:-1] + [t]) for t in matching_tickers[:8]]
+                )
+
+        # Strategy hints when discussing backtests
+        if "backtest" in text_lc or "strategy" in text_lc:
+            for strategy in cls.STRATEGIES[:6]:
+                if strategy not in text_lc:
+                    suggestions.append(text_lc + " " + strategy)
+
+        # Phrase completion (short list)
         for phrase in cls.PHRASES:
             phrase_lower = phrase.lower()
-            if text in phrase_lower:
+            if text_lc and text_lc in phrase_lower and len(text_lc) >= 4:
                 suggestions.append(phrase)
-        
+
         return suggestions[:max_results]
     
     @classmethod
@@ -335,22 +353,23 @@ class AutocompleteEngine:
         """Get help text for a command."""
         help_texts = {
             "/help": "Show all available commands",
-            "/keys": "Configure API keys for providers",
-            "/models": "List available AI models",
-            "/provider": "Switch AI provider (google, openai, anthropic, groq, ollama)",
-            "/model": "Switch to a specific model",
-            "/backtest": "Show available backtest strategies",
-            "/status": "Show current configuration",
-            "/export": "Export conversation to file",
-            "/clear": "Clear chat history",
-            "/compare": "Compare multiple assets",
-            "/chart": "Generate a chart",
-            "/report": "Generate a research report",
-            "/alert": "Set up price or signal alerts",
-            "/watchlist": "Manage your watchlist",
-            "/portfolio": "Portfolio analysis and optimization",
-            "/strategy": "Discover and test strategies",
-            "/preset": "Use a prompt preset template",
+            "/keys": "API key presence (masked)",
+            "/models": "List reference models by provider",
+            "/provider": "Show active AI provider",
+            "/model": "Show default model id",
+            "/backtest": "List built-in backtest strategies",
+            "/status": "Provider, model, Ollama, keys",
+            "/tools": "List registered data tools",
+            "/export": "Save this chat to ~/.sigma/exports/",
+            "/clear": "Clear the transcript (Ctrl+L)",
+            "/compare": "Tip: use natural language or CLI sigma compare",
+            "/chart": "Tip: sigma chart TICKER or ask in chat",
+            "/report": "Ask the assistant for a structured report",
+            "/alert": "Ask the assistant to set watch criteria",
+            "/watchlist": "Ask the assistant about a watchlist",
+            "/portfolio": "Portfolio prompts via chat",
+            "/strategy": "Strategy ideas via chat or local_backtest tools",
+            "/preset": "Use Engine prompt presets via chat",
         }
         return help_texts.get(command, "No help available for this command")
 
