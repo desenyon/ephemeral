@@ -1,303 +1,308 @@
-"""CLI entry point for Sigma v3.6.1."""
+"""CLI entry point for Sigma v3.7.0 — Rich UX layer over the TUI and one-shot commands."""
+
+from __future__ import annotations
 
 import argparse
-import json
+import asyncio
+import shutil
 import sys
-import time
 from typing import Optional
 
-from rich.console import Console
-from rich.table import Table
+from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.table import Table
 
 from .app import launch
+from .cli_ui import (
+    make_console,
+    open_file_cross_platform,
+    print_banner,
+    print_help_footer,
+    print_quick_start,
+    print_status_dashboard,
+    run_doctor,
+)
 from .config import (
-    get_settings, save_api_key, save_setting, AVAILABLE_MODELS, LLMProvider,
-    is_first_run, mark_first_run_complete, detect_lean_installation, detect_ollama
+    AVAILABLE_MODELS,
+    detect_lean_installation,
+    detect_ollama,
+    get_settings,
+    is_first_run,
+    mark_first_run_complete,
+    needs_llm_setup,
+    save_api_key,
+    save_setting,
 )
 
-
-__version__ = "3.6.1"
-
-console = Console()
+__version__ = "3.7.0"
 
 
-def show_banner():
-    """Show the Sigma banner."""
-    banner = f"""
-[bold #3b82f6]███████╗██╗ ██████╗ ███╗   ███╗ █████╗[/bold #3b82f6]
-[bold #60a5fa]██╔════╝██║██╔════╝ ████╗ ████║██╔══██╗[/bold #60a5fa]
-[bold #93c5fd]███████╗██║██║  ███╗██╔████╔██║███████║[/bold #93c5fd]
-[bold #60a5fa]╚════██║██║██║   ██║██║╚██╔╝██║██╔══██║[/bold #60a5fa]
-[bold #3b82f6]███████║██║╚██████╔╝██║ ╚═╝ ██║██║  ██║[/bold #3b82f6]
-[bold #1d4ed8]╚══════╝╚═╝ ╚═════╝ ╚═╝     ╚═╝╚═╝  ╚═╝[/bold #1d4ed8]
-
-[dim]v{__version__}[/dim] [bold cyan]σ[/bold cyan] [bold]Finance Research Agent[/bold]
-"""
-    console.print(banner)
-
-
-def main():
-    """Main CLI entry point."""
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="sigma",
-        description="Sigma v3.6.1 - Finance Research Agent",
+        description="Sigma — terminal-native finance research (TUI + one-shot commands).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  sigma                          # Launch interactive app
-  sigma ask "analyze AAPL"       # Quick query
-  sigma quote AAPL GOOGL MSFT    # Get quotes
-  sigma --setup                  # Run setup wizard
-        """
+        epilog=(
+            "Examples:\n"
+            "  sigma                         # Interactive TUI (Textual)\n"
+            "  sigma ask \"Summarize AAPL risk factors\"\n"
+            "  sigma quote NVDA AMD\n"
+            "  sigma chart SPY --period 1y -o /tmp/spy.png\n"
+            "  sigma doctor                  # Health check\n"
+            "  sigma --status                # Config + services\n"
+        ),
     )
-    
+
     parser.add_argument(
-        "--version", "-v",
+        "--version",
+        "-v",
         action="store_true",
-        help="Show version and exit"
+        help="Show version and exit",
     )
-    
     parser.add_argument(
         "--setup",
         action="store_true",
-        help="Run the setup wizard"
+        help="Run the interactive setup wizard",
     )
-    
     parser.add_argument(
         "--setkey",
         nargs=2,
         metavar=("PROVIDER", "KEY"),
-        help="Set API key for provider (google, openai, anthropic, groq, xai)"
+        help="Set API key (google, openai, anthropic, groq, xai, polygon, alphavantage, exa)",
     )
-    
     parser.add_argument(
         "--provider",
         choices=["google", "openai", "anthropic", "groq", "xai", "ollama"],
-        help="Set default AI provider"
+        help="Set default AI provider",
     )
-    
     parser.add_argument(
         "--model",
-        help="Set default model"
+        help="Set default model id",
     )
-    
     parser.add_argument(
         "--list-models",
         action="store_true",
-        help="List available models"
+        help="List bundled model suggestions by provider",
     )
-    
     parser.add_argument(
         "--status",
         action="store_true",
-        help="Show current configuration"
+        help="Show configuration, connectivity, and key status",
     )
-    
-    # Subcommands
-    subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
-    # Ask command
-    ask_parser = subparsers.add_parser("ask", help="Ask a question")
-    ask_parser.add_argument("query", nargs="+", help="Your question")
-    
-    # Quote command
-    quote_parser = subparsers.add_parser("quote", help="Get stock quotes")
-    quote_parser.add_argument("symbols", nargs="+", help="Stock symbols")
-    
-    # Chart command
-    chart_parser = subparsers.add_parser("chart", help="Generate a chart")
-    chart_parser.add_argument("symbol", help="Stock symbol")
-    chart_parser.add_argument("--period", default="6mo", help="Time period (default: 6mo)")
-    chart_parser.add_argument("--output", "-o", help="Output file path")
-    
-    # Backtest command
-    backtest_parser = subparsers.add_parser("backtest", help="Run a backtest")
-    backtest_parser.add_argument("symbol", help="Stock symbol")
-    backtest_parser.add_argument("--strategy", "-s", default="sma_crossover", 
-                                 help="Strategy name (default: sma_crossover)")
-    backtest_parser.add_argument("--period", default="1y", help="Time period (default: 1y)")
-    
-    # Compare command
-    compare_parser = subparsers.add_parser("compare", help="Compare stocks")
-    compare_parser.add_argument("symbols", nargs="+", help="Stock symbols to compare")
-    
+    parser.add_argument(
+        "--no-ui",
+        action="store_true",
+        help="With --version: print plain text only (no Rich banner)",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", metavar="COMMAND", help="Subcommands")
+
+    ask_p = subparsers.add_parser("ask", help="Ask the LLM with tools (non-interactive)")
+    ask_p.add_argument("query", nargs="+", help="Question / prompt")
+
+    quote_p = subparsers.add_parser("quote", help="Fetch stock quotes")
+    quote_p.add_argument("symbols", nargs="+", help="Ticker symbols")
+
+    chart_p = subparsers.add_parser("chart", help="Generate a candlestick chart (saved under ~/.sigma/charts)")
+    chart_p.add_argument("symbol", help="Ticker symbol")
+    chart_p.add_argument("--period", default="6mo", help="yfinance period (default: 6mo)")
+    chart_p.add_argument(
+        "--output",
+        "-o",
+        help="Optional path to copy the rendered PNG to",
+    )
+
+    bt_p = subparsers.add_parser("backtest", help="Run the built-in yfinance backtest engine")
+    bt_p.add_argument("symbol", help="Ticker symbol")
+    bt_p.add_argument(
+        "--strategy",
+        "-s",
+        default="sma_crossover",
+        help="Strategy id (default: sma_crossover)",
+    )
+    bt_p.add_argument("--period", default="1y", help="History window (default: 1y)")
+
+    cmp_p = subparsers.add_parser("compare", help="Compare symbols (returns, vol, Sharpe, …)")
+    cmp_p.add_argument("symbols", nargs="+", help="Tickers to compare")
+
+    subparsers.add_parser("doctor", help="Verify Python deps, binaries, and API key presence")
+
+    return parser
+
+
+def main() -> int:
+    parser = _build_parser()
     args = parser.parse_args()
-    
+    console = make_console()
+
     if args.version:
-        show_banner()
+        if args.no_ui:
+            print(f"sigma {__version__}")
+            return 0
+        print_banner(console, __version__)
         return 0
-    
+
     if args.setup:
         from .setup_agent import run_setup
+
         result = run_setup()
         if result:
             mark_first_run_complete()
-            # After manual setup, ask if user wants to launch
             from rich.prompt import Confirm
+
             if Confirm.ask("\n[bold cyan]σ[/bold cyan] Launch Sigma now?", default=True):
                 launch()
         return 0 if result else 1
-    
-    # Auto-launch setup on first run, then start interactive
+
     if is_first_run():
-        console.print("\n[bold cyan]σ[/bold cyan] [bold]Welcome to Sigma![/bold]")
-        console.print("[dim]First time setup detected. Launching setup wizard...[/dim]\n")
+        console.print("\n[bold cyan]σ[/bold cyan] [bold]Welcome to Sigma[/bold]")
+        console.print("[dim]First run — starting the setup wizard…[/dim]\n")
         from .setup_agent import run_setup
+
         result = run_setup()
-        mark_first_run_complete()  # Always mark complete to not ask again
-        
+        mark_first_run_complete()
+
         if result:
-            console.print("\n[bold green]Setup complete![/bold green]")
-            console.print("[dim]Launching Sigma...[/dim]\n")
+            console.print("\n[bold green]Setup complete.[/bold green] [dim]Launching…[/dim]\n")
             import time
-            time.sleep(1)  # Brief pause for user to see message
+
+            time.sleep(1)
             launch()
             return 0
-        else:
-            console.print("\n[yellow]Setup skipped.[/yellow] You can run [bold]sigma --setup[/bold] later.")
-            console.print("[dim]Launching Sigma anyway...[/dim]\n")
-            launch()
-            return 0
-    
+
+        console.print("\n[yellow]Setup skipped.[/yellow] Run [bold]sigma --setup[/bold] anytime.\n")
+        launch()
+        return 0
+
     if args.list_models:
-        console.print("\n[bold]Available Models by Provider:[/bold]\n")
+        console.print("\n[bold]Models (reference list by provider)[/bold]\n")
         for provider, models in AVAILABLE_MODELS.items():
-            console.print(f"  [cyan]{provider}:[/cyan]")
+            console.print(f"  [cyan]{provider}[/cyan]")
             for model in models:
                 console.print(f"    • {model}")
         return 0
-    
+
     if args.status:
         settings = get_settings()
-        
-        table = Table(title="Sigma Configuration", show_header=False)
-        table.add_column("Setting", style="bold")
-        table.add_column("Value")
-        
-        table.add_row("Provider", settings.default_provider.value if hasattr(settings.default_provider, 'value') else str(settings.default_provider))
-        table.add_row("Model", settings.default_model)
-        table.add_row("", "")
-        table.add_row("API Keys", "")
-        table.add_row("  Google", "[green]OK[/green]" if settings.google_api_key else "[red]--[/red]")
-        table.add_row("  OpenAI", "[green]OK[/green]" if settings.openai_api_key else "[red]--[/red]")
-        table.add_row("  Anthropic", "[green]OK[/green]" if settings.anthropic_api_key else "[red]--[/red]")
-        table.add_row("  Groq", "[green]OK[/green]" if settings.groq_api_key else "[red]--[/red]")
-        table.add_row("  xAI", "[green]OK[/green]" if settings.xai_api_key else "[red]--[/red]")
-        
-        console.print(table)
+        print_status_dashboard(console, settings, detect_ollama=detect_ollama, detect_lean_installation=detect_lean_installation)
         return 0
-    
+
     if args.setkey:
         provider, key = args.setkey
         provider = provider.lower()
-        
-        try:
-            provider_enum = LLMProvider(provider)
-            save_api_key(provider_enum, key)
-            console.print(f"[bold cyan]σ[/bold cyan] API key for {provider} saved.")
-            return 0
-        except ValueError:
+        if not save_api_key(provider, key):
             console.print(f"[red]Error:[/red] Unknown provider '{provider}'")
-            console.print(f"Valid providers: google, openai, anthropic, groq, xai")
+            console.print("[dim]Valid: google, openai, anthropic, groq, xai, polygon, alphavantage, exa[/dim]")
             return 1
-    
+        console.print(f"[bold cyan]σ[/bold cyan] Saved credentials for [bold]{provider}[/bold].")
+        return 0
+
     if args.provider or args.model:
         if args.provider:
             save_setting("default_provider", args.provider)
-            console.print(f"[bold cyan]σ[/bold cyan] Default provider: {args.provider}")
-        
+            console.print(f"[bold cyan]σ[/bold cyan] Default provider → [bold]{args.provider}[/bold]")
         if args.model:
             save_setting("default_model", args.model)
-            console.print(f"[bold cyan]σ[/bold cyan] Default model: {args.model}")
-        
+            console.print(f"[bold cyan]σ[/bold cyan] Default model → [bold]{args.model}[/bold]")
         return 0
-    
-    # Handle subcommands
+
     if args.command == "ask":
-        query = " ".join(args.query)
-        return handle_ask(query)
-    
-    elif args.command == "quote":
-        return handle_quotes(args.symbols)
-    
-    elif args.command == "chart":
-        return handle_chart(args.symbol, args.period, args.output)
-    
-    elif args.command == "backtest":
-        return handle_backtest(args.symbol, args.strategy, args.period)
-    
-    elif args.command == "compare":
-        return handle_compare(args.symbols)
-    
-    # Default: Launch the app
+        return handle_ask(console, " ".join(args.query))
+
+    if args.command == "quote":
+        return handle_quotes(console, args.symbols)
+
+    if args.command == "chart":
+        return handle_chart(console, args.symbol, args.period, args.output)
+
+    if args.command == "backtest":
+        return handle_backtest(console, args.symbol, args.strategy, args.period)
+
+    if args.command == "compare":
+        return handle_compare(console, args.symbols)
+
+    if args.command == "doctor":
+        settings = get_settings()
+        return run_doctor(console, settings)
+
+    # Default TUI: optional splash
+    print_banner(console, __version__)
+    print_quick_start(console)
+    print_help_footer(console)
+    if needs_llm_setup(get_settings()):
+        console.print(
+            "[dim]LLM is not ready (missing API key or Ollama model). "
+            "The app opens on a setup screen until this is fixed.[/dim]\n"
+        )
     launch()
     return 0
 
 
-def handle_ask(query: str) -> int:
-    """Handle ask command."""
-    import asyncio
+def handle_ask(console, query: str) -> int:
     from .llm import get_router
-    from .tools import get_tools_for_llm, execute_tool
-    
+    from .tools import execute_tool, get_tools_for_llm
+
     settings = get_settings()
-    
-    console.print(f"\n[dim]Using model: {settings.default_model}[/dim]\n")
-    
+    console.print(f"\n[dim]Model:[/dim] [bold]{settings.default_model}[/bold]\n")
+
     try:
         router = get_router(settings)
-        
+
         async def run_query():
-            """Run the query asynchronously."""
             messages = [
-                {"role": "system", "content": "You are Sigma, a helpful financial intelligence assistant. Use the tools available to provide accurate, data-driven insights."},
-                {"role": "user", "content": query}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Sigma, a helpful financial intelligence assistant. "
+                        "Use tools for accurate, data-driven answers."
+                    ),
+                },
+                {"role": "user", "content": query},
             ]
-            
+
             async def handle_tool(name: str, args: dict):
-                """Handle tool calls."""
-                console.print(f"[dim]Executing: {name}[/dim]")
+                console.print(f"[dim]tool[/dim] [bold]{name}[/bold]")
                 return execute_tool(name, args)
-            
-            # Using stream=False for CLI quick question to get full text at once
-            response = await router.chat(messages, tools=get_tools_for_llm(), on_tool_call=handle_tool, stream=False)
-            return response
-        
-        with console.status("[bold blue]σ analyzing...[/bold blue]"):
+
+            return await router.chat(
+                messages,
+                tools=get_tools_for_llm(),
+                on_tool_call=handle_tool,
+                stream=False,
+            )
+
+        with console.status("[bold blue]σ analyzing…[/bold blue]"):
             response = asyncio.run(run_query())
-        
-        from rich.markdown import Markdown
-        console.print(Panel(Markdown(str(response)), title="[bold cyan]σ Sigma[/bold cyan]"))
+
+        console.print(Panel(Markdown(str(response)), title="[bold cyan]σ Sigma[/bold cyan]", border_style="cyan"))
         return 0
-    
+
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         return 1
 
 
-def handle_quotes(symbols: list) -> int:
-    """Handle quote command."""
+def handle_quotes(console, symbols: list) -> int:
     from .tools import get_stock_quote
-    
-    table = Table(title="Stock Quotes")
+
+    table = Table(title="Quotes", show_lines=True, border_style="cyan")
     table.add_column("Symbol", style="cyan")
     table.add_column("Price", justify="right")
     table.add_column("Change", justify="right")
     table.add_column("Change %", justify="right")
     table.add_column("Volume", justify="right")
-    
+
     for symbol in symbols:
         quote = get_stock_quote(symbol)
-        
+
         if "error" in quote:
-            table.add_row(symbol, "[red]Error[/red]", "-", "-", "-")
+            table.add_row(symbol, "[red]Error[/red]", "—", "—", "—")
             continue
-        
+
         change = quote.get("change", 0)
         change_pct = quote.get("change_percent", 0)
         change_style = "green" if change >= 0 else "red"
-        
+
         table.add_row(
             quote.get("symbol", symbol),
             f"${quote.get('price', 0):,.2f}",
@@ -305,133 +310,121 @@ def handle_quotes(symbols: list) -> int:
             f"[{change_style}]{change_pct:+.2f}%[/{change_style}]",
             f"{quote.get('volume', 0):,}",
         )
-    
+
     console.print(table)
     return 0
 
 
-def handle_chart(symbol: str, period: str, output: Optional[str] = None) -> int:
-    """Handle chart command."""
-    from .charts import create_candlestick_chart
+def handle_chart(console, symbol: str, period: str, output: Optional[str]) -> int:
     import yfinance as yf
-    
-    with console.status(f"[bold blue]Generating chart for {symbol}...[/bold blue]"):
+
+    from .charts import create_candlestick_chart
+
+    with console.status(f"[bold blue]Fetching {symbol} ({period})…[/bold blue]"):
         try:
             ticker = yf.Ticker(symbol.upper())
             hist = ticker.history(period=period)
-            
+
             if hist.empty:
-                console.print(f"[red]Error:[/red] No data found for {symbol}")
+                console.print(f"[red]Error:[/red] No data for {symbol}")
                 return 1
-            
+
             filepath = create_candlestick_chart(symbol, hist)
         except Exception as e:
             console.print(f"[red]Error:[/red] {e}")
             return 1
-    
-    console.print(f"[bold cyan]σ[/bold cyan] Chart saved to: {filepath}")
-    
-    # Try to open the chart
-    import subprocess
-    try:
-        subprocess.run(["open", filepath], check=True)
-    except Exception:
-        pass
-    
+
+    dest = filepath
+    if output:
+        shutil.copy2(filepath, output)
+        dest = output
+
+    console.print(f"[bold cyan]σ[/bold cyan] Chart written to: [bold]{dest}[/bold]")
+    open_file_cross_platform(dest)
     return 0
 
 
-def handle_backtest(symbol: str, strategy: str, period: str) -> int:
-    """Handle backtest command."""
-    from .backtest import run_backtest, get_available_strategies
-    
+def handle_backtest(console, symbol: str, strategy: str, period: str) -> int:
+    from .backtest import get_available_strategies, run_backtest
+
     strategies = get_available_strategies()
-    
+
     if strategy not in strategies:
         console.print(f"[red]Error:[/red] Unknown strategy '{strategy}'")
         console.print(f"Available: {', '.join(strategies.keys())}")
         return 1
-    
-    with console.status(f"[bold blue]Running backtest: {strategy} on {symbol}...[/bold blue]"):
+
+    with console.status(f"[bold blue]Backtest {strategy} on {symbol}…[/bold blue]"):
         result = run_backtest(symbol, strategy, period)
-    
+
     if "error" in result:
         console.print(f"[red]Error:[/red] {result['error']}")
         return 1
-    
-    # Display results
+
     console.print()
-    console.print(Panel(
-        f"[bold]{result.get('strategy', strategy.upper())}[/bold]\n"
-        f"[dim]{result.get('strategy_description', '')}[/dim]",
-        title=f"[bold cyan]Backtest: {symbol.upper()}[/bold cyan]",
-    ))
-    
-    # Performance table
+    console.print(
+        Panel(
+            f"[bold]{result.get('strategy', strategy.upper())}[/bold]\n"
+            f"[dim]{result.get('strategy_description', '')}[/dim]",
+            title=f"[bold cyan]Backtest · {symbol.upper()}[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+
     perf = result.get("performance", {})
-    table = Table(title="Performance", show_header=False)
+    table = Table(title="Performance", show_header=False, border_style="dim")
     table.add_column("Metric", style="bold")
     table.add_column("Value", justify="right")
-    
     table.add_row("Initial Capital", perf.get("initial_capital", "$100,000"))
     table.add_row("Final Equity", perf.get("final_equity", "N/A"))
     table.add_row("Total Return", perf.get("total_return", "N/A"))
     table.add_row("Annual Return", perf.get("annual_return", "N/A"))
     table.add_row("Buy & Hold Return", perf.get("buy_hold_return", "N/A"))
     table.add_row("Alpha", perf.get("alpha", "N/A"))
-    
     console.print(table)
-    
-    # Risk table
+
     risk = result.get("risk", {})
-    risk_table = Table(title="Risk Metrics", show_header=False)
+    risk_table = Table(title="Risk", show_header=False, border_style="dim")
     risk_table.add_column("Metric", style="bold")
     risk_table.add_column("Value", justify="right")
-    
     risk_table.add_row("Volatility", risk.get("volatility", "N/A"))
     risk_table.add_row("Max Drawdown", risk.get("max_drawdown", "N/A"))
     risk_table.add_row("Sharpe Ratio", risk.get("sharpe_ratio", "N/A"))
     risk_table.add_row("Sortino Ratio", risk.get("sortino_ratio", "N/A"))
     risk_table.add_row("Calmar Ratio", risk.get("calmar_ratio", "N/A"))
-    
     console.print(risk_table)
-    
-    # Trade stats
+
     trades = result.get("trades", {})
-    trade_table = Table(title="Trade Statistics", show_header=False)
+    trade_table = Table(title="Trades", show_header=False, border_style="dim")
     trade_table.add_column("Metric", style="bold")
     trade_table.add_column("Value", justify="right")
-    
     trade_table.add_row("Total Trades", str(trades.get("total_trades", 0)))
     trade_table.add_row("Win Rate", trades.get("win_rate", "N/A"))
     trade_table.add_row("Profit Factor", trades.get("profit_factor", "N/A"))
     trade_table.add_row("Avg Win", trades.get("avg_win", "N/A"))
     trade_table.add_row("Avg Loss", trades.get("avg_loss", "N/A"))
-    
     console.print(trade_table)
-    
+
     return 0
 
 
-def handle_compare(symbols: list) -> int:
-    """Handle compare command."""
+def handle_compare(console, symbols: list) -> int:
     from .tools import compare_stocks
-    
-    with console.status(f"[bold blue]Comparing {', '.join(symbols)}...[/bold blue]"):
+
+    with console.status(f"[bold blue]Comparing {', '.join(symbols)}…[/bold blue]"):
         result = compare_stocks(symbols)
-    
+
     if "error" in result:
         console.print(f"[red]Error:[/red] {result['error']}")
         return 1
-    
+
     comparison = result.get("comparison", [])
-    
+
     if not comparison:
-        console.print("[yellow]No data found for the specified symbols[/yellow]")
+        console.print("[yellow]No data for those symbols.[/yellow]")
         return 1
-    
-    # Display comparison table
-    table = Table(title=f"Stock Comparison ({result.get('period', '1y')})")
+
+    table = Table(title=f"Comparison · {result.get('period', '1y')}", border_style="cyan")
     table.add_column("Symbol", style="cyan")
     table.add_column("Name", style="dim")
     table.add_column("Price", justify="right")
@@ -439,28 +432,26 @@ def handle_compare(symbols: list) -> int:
     table.add_column("Volatility", justify="right")
     table.add_column("Sharpe", justify="right")
     table.add_column("P/E", justify="right")
-    
+
     for stock in comparison:
         return_val = stock.get("total_return", 0)
         return_style = "green" if return_val >= 0 else "red"
-        
+
         table.add_row(
             stock.get("symbol", ""),
-            stock.get("name", "N/A")[:20],
+            str(stock.get("name", "N/A"))[:22],
             f"${stock.get('price', 0):,.2f}",
             f"[{return_style}]{return_val:+.2f}%[/{return_style}]",
             f"{stock.get('volatility', 0):.1f}%",
             f"{stock.get('sharpe', 0):.2f}",
             str(stock.get("pe_ratio", "N/A")),
         )
-    
+
     console.print(table)
-    
-    # Summary
     console.print()
     console.print(f"[green]Best:[/green] {result.get('best_performer', 'N/A')}")
     console.print(f"[red]Worst:[/red] {result.get('worst_performer', 'N/A')}")
-    
+
     return 0
 
 
