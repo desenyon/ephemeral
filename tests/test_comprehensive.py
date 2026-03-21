@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive test suite for Sigma v3.5.5.
+"""Comprehensive test suite for Sigma v3.7.0.
 
 Tests all core functionality including:
 - Configuration and settings
@@ -24,14 +24,14 @@ class TestVersion(unittest.TestCase):
     """Test that version is consistent across all files."""
     
     def test_version_consistency(self):
-        """All files should have version 3.5.5."""
+        """All files should share the same version string."""
         from sigma import __version__
         from sigma.app import __version__ as app_version
         from sigma.config import __version__ as config_version
         from sigma.cli import __version__ as cli_version
         from sigma.setup import __version__ as setup_version
         
-        expected = "3.5.5"
+        expected = "3.7.0"
         self.assertEqual(__version__, expected, "sigma/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "sigma/app.py version mismatch")
         self.assertEqual(config_version, expected, "sigma/config.py version mismatch")
@@ -100,11 +100,20 @@ class TestConfig(unittest.TestCase):
         from sigma.config import AVAILABLE_MODELS
         
         deprecated = [
-            "gemini-2.0-flash",        # Old Gemini 2.0
-            "gemini-1.5-pro",          # Old Gemini 1.5
-            "gpt-4o", "gpt-4o-mini",   # Old GPT-4 models
-            "o1", "o1-mini",           # Deprecated OpenAI reasoning models
-            "claude-3-opus-20240229",  # Older Claude model
+            "gemini-2.0-flash",
+            "gemini-1.5-pro",
+            "gemini-3-flash-preview",
+            "gemini-3-pro-preview",
+            "gemini-3-pro-image-preview",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o1",
+            "o1-mini",
+            "claude-3-opus-20240229",
+            "claude-sonnet-4-20250514",
+            "claude-opus-4-20250514",
+            "grok-3",
+            "grok-3-mini",
         ]
         
         for provider_models in AVAILABLE_MODELS.values():
@@ -252,13 +261,13 @@ class TestLLMClients(unittest.TestCase):
         from sigma.llm import get_llm
         from sigma.config import LLMProvider, SigmaError, ErrorCode
         
-        # Mock settings to have no API key
-        with patch('sigma.llm.get_settings') as mock_settings:
-            mock_settings.return_value = MagicMock(
-                google_api_key=None,
-                get_model=lambda x: "test-model"
-            )
-            
+        # Mock settings to have no API key (get_api_key must return None, not a MagicMock)
+        with patch("sigma.llm.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.google_api_key = None
+            settings.get_api_key = lambda _p: None
+            mock_settings.return_value = settings
+
             with self.assertRaises(SigmaError) as context:
                 get_llm(LLMProvider.GOOGLE)
             
@@ -269,11 +278,11 @@ class TestLLMClients(unittest.TestCase):
         from sigma.llm import get_llm, OllamaLLM
         from sigma.config import LLMProvider
         
-        with patch('sigma.llm.get_settings') as mock_settings:
-            mock_settings.return_value = MagicMock(
-                ollama_host="http://localhost:11434",
-                get_model=lambda x: "llama3.2"
-            )
+        with patch("sigma.llm.get_settings") as mock_settings:
+            settings = MagicMock()
+            settings.ollama_host = "http://localhost:11434"
+            settings.get_model = lambda _x: "llama3.3"
+            mock_settings.return_value = settings
             
             llm = get_llm(LLMProvider.OLLAMA)
             self.assertIsInstance(llm, OllamaLLM)
@@ -317,7 +326,7 @@ class TestAppComponents(unittest.TestCase):
         
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.5.5", WELCOME_BANNER)
+        self.assertIn("3.7.0", WELCOME_BANNER)
     
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -354,8 +363,8 @@ class TestPolygonIntegration(unittest.TestCase):
         """Polygon functions should return error when key not configured."""
         from sigma.tools import polygon_get_quote
         
-        # Mock to ensure no key
-        with patch('sigma.tools._get_polygon_key', return_value=None):
+        # Patch where the symbol is bound for polygon_get_quote (library namespace)
+        with patch("sigma.tools.library._get_polygon_key", return_value=None):
             result = polygon_get_quote("AAPL")
             self.assertIn("error", result)
             self.assertIn("Polygon API key not configured", result["error"])
@@ -401,7 +410,7 @@ class TestImports(unittest.TestCase):
             __version__
         )
         
-        self.assertEqual(__version__, "3.5.5")
+        self.assertEqual(__version__, "3.7.0")
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -471,7 +480,7 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("SIGMA v3.5.5 - COMPREHENSIVE TEST SUITE")
+    print("SIGMA v3.7.0 - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
     
     # Create test suite
