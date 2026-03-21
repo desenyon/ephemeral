@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, date
 from enum import Enum, auto
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 import json
 
 
@@ -134,8 +134,7 @@ class ResearchPlan(BaseModel):
     context: Dict[str, Any] = Field(default_factory=dict)
     clarifications_needed: List[str] = Field(default_factory=list)
     
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 # ============================================================================
