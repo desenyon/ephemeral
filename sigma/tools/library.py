@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 import yfinance as yf
+
+from .registry import filter_args_for_tool
 import pandas as pd
 import numpy as np
 
@@ -14,29 +16,41 @@ import numpy as np
 # ============================================================================
 
 def get_stock_quote(symbol: str) -> dict:
-    """Get current stock quote with key metrics."""
+    """Get current stock quote with key metrics.
+
+    Uses yfinance ``fast_info`` (one light Yahoo request) instead of ``.info``,
+    which is much slower and often unnecessary for a quote.
+    """
+    sym = symbol.upper()
     try:
-        ticker = yf.Ticker(symbol.upper())
-        info = ticker.info
-        
+        ticker = yf.Ticker(sym)
+        fi = dict(ticker.fast_info)
+        last = fi.get("lastPrice")
+        if last is None:
+            last = fi.get("regularMarketPreviousClose") or 0
+        prev_close = fi.get("previousClose") or fi.get("regularMarketPreviousClose") or 0
+        change = float(last) - float(prev_close) if prev_close else 0.0
+        chg_pct = (change / float(prev_close) * 100.0) if prev_close else 0.0
+
         return {
-            "symbol": symbol.upper(),
-            "name": info.get("shortName", "N/A"),
-            "price": info.get("regularMarketPrice", 0),
-            "change": info.get("regularMarketChange", 0),
-            "change_percent": info.get("regularMarketChangePercent", 0),
-            "open": info.get("regularMarketOpen", 0),
-            "high": info.get("regularMarketDayHigh", 0),
-            "low": info.get("regularMarketDayLow", 0),
-            "volume": info.get("regularMarketVolume", 0),
-            "market_cap": info.get("marketCap", 0),
-            "pe_ratio": info.get("trailingPE", "N/A"),
-            "52w_high": info.get("fiftyTwoWeekHigh", 0),
-            "52w_low": info.get("fiftyTwoWeekLow", 0),
-            "avg_volume": info.get("averageVolume", 0),
+            "symbol": sym,
+            "name": sym,
+            "price": last,
+            "change": change,
+            "change_percent": chg_pct,
+            "open": fi.get("open", 0),
+            "high": fi.get("dayHigh", 0),
+            "low": fi.get("dayLow", 0),
+            "volume": fi.get("lastVolume", 0),
+            "market_cap": fi.get("marketCap", 0),
+            "pe_ratio": "N/A",
+            "52w_high": fi.get("yearHigh", 0),
+            "52w_low": fi.get("yearLow", 0),
+            "avg_volume": fi.get("threeMonthAverageVolume")
+            or fi.get("tenDayAverageVolume", 0),
         }
     except Exception as e:
-        return {"error": str(e), "symbol": symbol}
+        return {"error": str(e), "symbol": sym}
 
 
 def get_stock_history(symbol: str, period: str = "3mo", interval: str = "1d") -> dict:
@@ -1904,7 +1918,7 @@ def execute_tool(name: str, args: dict) -> Any:
     func = TOOL_FUNCTIONS.get(name)
     if func:
         try:
-            return func(**args)
+            return func(**filter_args_for_tool(func, args))
         except Exception as e:
             return {"error": f"Tool execution failed: {str(e)}", "error_code": 1000}
     return {"error": f"Unknown tool: {name}", "error_code": 1001}
