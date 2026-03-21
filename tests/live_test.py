@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-Live Integration Test for Sigma v3.6.1
+Live Integration Test for Sigma v3.7.0
 WARNING: This script makes REAL API calls and consumes quota.
 """
 
-import sys
-import os
 import asyncio
+import os
+import sys
 from pathlib import Path
+
+import pytest
 
 # Ensure we can import sigma
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sigma.config import get_settings, LLMProvider
-from sigma.tools.registry import TOOL_REGISTRY
+from sigma.config import get_settings
 from sigma.llm.router import LLMRouter
+from sigma.tools.registry import TOOL_REGISTRY
 
+
+@pytest.mark.integration
 async def test_live_integrations():
     settings = get_settings()
     print(f"Loaded Settings. Default Provider: {settings.default_provider}")
