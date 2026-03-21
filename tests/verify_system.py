@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-System Verification Suite for Sigma v3.6.1
+System Verification Suite for Sigma v3.7.0
 Tests all core components, tools, and configurations.
 """
 
@@ -34,7 +34,7 @@ class TestSigmaSystem(unittest.TestCase):
         print(f"  [INFO] Default provider: {self.settings.default_provider}")
         
         # Check model
-        self.assertEqual(self.settings.ollama_model, "qwen2.5:1.5b")
+        self.assertEqual(self.settings.ollama_model, "qwen3.5:8b")
         
         # Check if fields exist (values might be None)
         self.assertIn("alpha_vantage_api_key", self.settings.model_fields)
