@@ -1,4 +1,4 @@
-"""Configuration management for Sigma v3.7.1."""
+"""Configuration management for Sigma v3.7.2."""
 
 import os
 import shutil
@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 load_dotenv()
 
 
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 
 
 class ErrorCode(IntEnum):
@@ -418,6 +418,9 @@ class Settings(BaseSettings):
     
     # Ollama settings
     ollama_host: str = "http://localhost:11434"
+
+    # LLM behavior: append a user-message nudge to prefer multiple tool calls (TUI + sigma ask)
+    sigma_aggressive_tools: bool = Field(default=True, alias="SIGMA_AGGRESSIVE_TOOLS")
     
     # LEAN settings
     lean_cli_path: Optional[str] = Field(default=None, alias="LEAN_CLI_PATH")
