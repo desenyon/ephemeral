@@ -1,6 +1,7 @@
-"""Sigma v3.7.1 - Finance Research Agent."""
+"""Sigma v3.7.2 - Finance Research Agent."""
 
 import asyncio
+import json
 import time
 from pathlib import Path
 from typing import Any, List, Dict, Optional
@@ -33,6 +34,7 @@ from .config import (
 )
 from .cli_ui import format_tui_status_markdown
 from .llm.router import get_router, LLMRouter
+from .llm.tool_guidance import USER_TOOL_NUDGE, build_augmented_system_prompt
 from .tools.registry import TOOL_REGISTRY, filter_args_for_tool
 # Import tools to ensure registration
 import sigma.tools.local_backtest
@@ -117,22 +119,48 @@ class SetupGate(Vertical):
     def on_mount(self) -> None:
         self.query_one("#setup-body-text", Static).update(format_setup_instructions())
 
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 
-SYSTEM_PROMPT = """You are Sigma, an elite financial research assistant.
-Your goal is to provide accurate, data-driven, and comprehensive financial analysis.
+SYSTEM_PROMPT = """You are Sigma, a senior financial research copilot (terminal UI). Your job is to
+reduce confusion: always ground claims in tools, cite what you fetched, and explain *why* something
+matters to a portfolio or thesis.
 
-GUIDELINES:
-- Be proactive: anticipate follow-up questions and surface risks.
-- Be actionable: tie evidence to clear next steps and scenarios.
-- Use tools for real market data; stay data-driven in every section.
-- You may state a recommendation stance when justified (e.g. STRONG BUY / HOLD / STRONG SELL) and calibrate it to the evidence.
-- Be concise. Use Markdown.
-"""
+## Behavior
+- Lead with the answer, then evidence. Use Markdown: short sections, bullets, tables when comparing.
+- When the user names tickers, call tools early (quotes, `fetch_news_digest`, fundamentals) before
+  long prose. Prefer `fetch_news_digest` for “why is X moving”, headlines, and catalyst context.
+- After tool results: synthesize (do not dump raw JSON). Quote numbers with units and timestamps.
+- If data is missing or APIs error, say so once and suggest what key or action fixes it.
+- Multi-step reasoning: note assumptions, risks, and what would change your view.
+- Stay professional; no fabricated prices, filings, or URLs. If unsure, verify with tools or say you cannot.
+
+## Output shape (flexible)
+1) **Take** — one tight paragraph.
+2) **Evidence** — facts from tools (with source implied by tool name).
+3) **Risks / second-order** — what could invalidate the view.
+4) **Next** — concrete follow-ups (metrics, charts, scenarios).
+
+## Tools
+Use the registered tools liberally. For news and narrative context, prefer **fetch_news_digest**
+(symbol + optional query). Use price/quote tools for levels; use fundamentals/risk tools when the user
+asks valuation, quality, or drawdowns.
+
+## Parallel tool use (critical)
+- You may issue **multiple tool calls in a single turn**. APIs support parallel calls—use them.
+- For a single ticker “what’s going on / thesis”: combine **quote + news digest + (fundamentals or risk)**
+  when relevant—do not stop after one tool unless the user asked a single narrow fact.
+- For **comparisons** (A vs B): use **compare_stocks** and/or separate quotes for each name, plus news or
+  valuation tools as needed—cover every symbol mentioned.
+- For **macro + names**: use `get_market_overview` / `get_sector_performance` / `get_economic_indicators`
+  alongside ticker-level tools when the prompt mixes both.
+- Prefer **breadth over speed**: an extra tool that contradicts or refines the thesis is worth calling.
+
+Tone: precise, institutional, but readable. Avoid filler. Use headings sparingly."""
 
 WELCOME_BANNER = (
-    f"**Sigma** `v{__version__}` · Finance research terminal\n\n"
-    "Try natural language, **`/` commands**, or tool-backed questions (quotes, backtests, news)."
+    f"### Sigma `v{__version__}`\n\n"
+    "**Research terminal** — type a question, **`/` commands**, or ask for quotes, news, and backtests.\n\n"
+    "_Tip: tickers like **AAPL** or **$NVDA** highlight in chat. Tab completes `/` commands._"
 )
 
 SUGGESTIONS = [
@@ -178,10 +206,8 @@ class UserMessage(ChatMessage):
         self.content = content
 
     def render(self) -> RenderableType:
-        t = Text()
-        t.append("You ", style="bold #89b4fa")
-        t.append(self.content, style="bold #cdd6f4")
-        return t
+        head = Text("You ", style="bold #89dceb")
+        return head + rich_text_user_line(self.content)
 
 class ToolMessage(ChatMessage):
     """A message representing a tool call."""
@@ -194,11 +220,29 @@ class ToolMessage(ChatMessage):
         self.tool_name = tool_name
         self.start_time = time.time()
         self.finished = False
+        self._spin_timer = None
+        self._spin_i = 0
+
+    def on_mount(self) -> None:
+        self._spin_timer = self.set_interval(0.1, self._advance_spin)
+
+    def _advance_spin(self) -> None:
+        if self.finished:
+            if self._spin_timer is not None:
+                self._spin_timer.stop()
+                self._spin_timer = None
+            return
+        self._spin_i = (self._spin_i + 1) % len(SPINNER_BRAILE)
+        self.refresh()
 
     def render(self) -> RenderableType:
-        # Minimalist tool output
         if not self.finished:
-            return Text(f"  [RUN] {self.tool_name}...", style="dim #565f89")
+            fr = SPINNER_BRAILE[self._spin_i % len(SPINNER_BRAILE)]
+            t = Text()
+            t.append(f"  {fr} ", style="bold #89dceb")
+            t.append(self.tool_name, style="bold #cba6f7")
+            t.append("  ·  running…", style="dim #6c7086")
+            return t
         
         status_color = "#9ece6a" if "Error" not in self.status else "#f7768e"
         status_text = "[OK]" if "Error" not in self.status else "[ERR]"
@@ -222,6 +266,9 @@ class ToolMessage(ChatMessage):
         
     def complete(self, result: Any, error: bool = False):
         self.finished = True
+        if self._spin_timer is not None:
+            self._spin_timer.stop()
+            self._spin_timer = None
         self.result = result
         self.status = "Error" if error else "Completed"
         if error:
@@ -242,22 +289,32 @@ class AssistantMessage(ChatMessage):
         cls = kwargs.pop("classes", "")
         merged = f"msg-assistant {cls}".strip()
         super().__init__("", classes=merged, **kwargs)
+        self._replace_on_first_chunk = False
 
     def watch_stream_text(self, _old: str, new: str) -> None:
         """Push markdown into Static via ``update()`` so the TUI actually paints it."""
         if not new:
             self.update(Text("", end=""))
             return
-        self.update(Markdown(new))
+        self.update(Markdown(enhance_markdown_tickers(new)))
 
     def append(self, chunk: str) -> None:
+        if self._replace_on_first_chunk:
+            if not chunk:
+                return
+            self._replace_on_first_chunk = False
+            self.stream_text = chunk
+            return
         self.stream_text += chunk
 
     def set_text(self, text: str) -> None:
         """Replace full content (slash commands, non-streaming replies)."""
+        self._replace_on_first_chunk = False
         self.stream_text = text
 
+from .ui.motion import SPINNER_BRAILE
 from .utils.formatting import format_tool_result
+from .utils.ticker_highlight import enhance_markdown_tickers, rich_text_user_line
 
 class SigmaApp(App):
     """The main Sigma TUI application."""
@@ -269,7 +326,7 @@ class SigmaApp(App):
 
     CSS = """
     Screen {
-        background: #0d0f18;
+        background: #0b0d12;
         color: #cdd6f4;
     }
 
@@ -278,8 +335,8 @@ class SigmaApp(App):
         height: 1;
         layout: horizontal;
         padding: 0 2;
-        background: #11111b;
-        color: #89b4fa;
+        background: #0f111a;
+        color: #89dceb;
         text-style: bold;
         border-bottom: tall #313244;
     }
@@ -290,10 +347,10 @@ class SigmaApp(App):
     }
 
     #loader {
-        width: 4;
+        width: 18;
         height: 1;
-        min-width: 4;
-        max-width: 4;
+        min-width: 18;
+        max-width: 22;
         overflow: hidden;
         background: transparent;
         border: none;
@@ -308,13 +365,13 @@ class SigmaApp(App):
         overflow-y: auto;
         padding: 1 3;
         scrollbar-gutter: stable;
-        background: #0d0f18;
+        background: #0b0d12;
     }
 
     #input-area {
         height: auto;
         dock: bottom;
-        background: #0c0d14;
+        background: #08090e;
         padding: 0 2 1 2;
         border-top: tall #313244;
         layout: vertical;
@@ -386,31 +443,41 @@ class SigmaApp(App):
     .msg-user {
         margin: 1 0;
         padding: 0 1 0 2;
-        border-left: outer #89b4fa;
-        background: #11111b;
+        border-left: outer #89dceb;
+        background: #101018;
     }
 
     ToolMessage {
         margin: 0 0 0 2;
         padding: 0 1;
-        color: #6c7086;
+        color: #7f849c;
+        background: #0f1018;
+        border-left: outer #45475a;
+    }
+
+    ToolMessage.completed {
+        border-left: outer #94e2d5;
+    }
+
+    ToolMessage.error {
+        border-left: outer #f38ba8;
     }
 
     .msg-assistant {
         margin: 1 0 2 0;
         padding: 1 2;
-        background: #11111b;
-        border: round #313244;
+        background: #12121c;
+        border: round #45475a;
         color: #cdd6f4;
     }
 
     .welcome-message {
         text-align: center;
-        color: #6c7086;
-        margin: 3 2;
+        color: #7f849c;
+        margin: 2 2;
         padding: 2;
-        border: round #313244;
-        background: #11111b;
+        border: round #45475a;
+        background: #101018;
     }
 
     #suggestion-label {
@@ -560,9 +627,78 @@ class SigmaApp(App):
                 fn = out / f"sigma-chat-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
                 fn.write_text(body, encoding="utf-8")
                 text = f"Wrote **{fn}** ({len(body)} characters)."
+            elif cmd == "/shortcuts":
+                text = (
+                    "## Keyboard shortcuts\n\n"
+                    "| Key | Action |\n"
+                    "| --- | --- |\n"
+                    "| **Tab** | Accept ghost text or insert selected `/` command |\n"
+                    "| **↑ / ↓** | Move in the slash menu |\n"
+                    "| **Enter** | Send message or run `/` command |\n"
+                    "| **Ctrl+L** | Clear chat transcript |\n"
+                    "| **Ctrl+C** | Quit |\n\n"
+                    "Tickers like `AAPL` or `$NVDA` are highlighted. The badge by the input shows "
+                    "the latest symbol while you type.\n"
+                )
+            elif cmd == "/setup-help":
+                text = (
+                    "## Setup\n\n"
+                    "1. Copy `.env.example` to `~/.sigma/config.env` and fill keys.\n"
+                    "2. `sigma --setkey openai <key>` (or `google`, `anthropic`, `polygon`, …).\n"
+                    "3. `sigma --provider openai` and `sigma --model <id>`.\n"
+                    "4. Run `/status` or `sigma --status` to verify.\n\n"
+                    "Docs: https://github.com/desenyon/sigma#readme\n"
+                )
+            elif cmd == "/reload":
+                self.router = get_router(get_settings(), force=True)
+                text = "Reloaded the LLM router from environment and `~/.sigma/config.env`."
+            elif cmd in ("/news", "/digest"):
+                parts = arg.split()
+                sym = ""
+                lim = 10
+                for p in parts:
+                    if p.isdigit():
+                        lim = max(1, min(25, int(p)))
+                    elif not sym:
+                        sym = p.upper().strip(".,;:")
+                if not sym:
+                    text = (
+                        "**Usage:** `/news AAPL` or `/news NVDA 15` (headline limit).\n\n"
+                        "Feeds try **Polygon**, **Alpha Vantage**, **Exa**, then **Yahoo** — "
+                        "configure keys for the best coverage."
+                    )
+                else:
+                    from sigma.tools.library import fetch_news_digest
+
+                    r = fetch_news_digest(symbol=sym, limit=lim)
+                    if r.get("error"):
+                        text = f"## News `{sym}`\n\n{r.get('error')}\n\n{r.get('setup_hint', '')}"
+                    else:
+                        lines = [
+                            f"## Headlines — `{sym}`",
+                            f"_Source: {r.get('source_used', '?')}_",
+                            "",
+                        ]
+                        for article in (r.get("articles") or [])[:20]:
+                            title = (article.get("title") or "")[:220]
+                            summ = (article.get("summary") or article.get("description") or "")[:320]
+                            lines.append(f"- **{title}**")
+                            if summ:
+                                lines.append(f"  _{summ}_")
+                        text = "\n".join(lines)
+            elif cmd == "/quote":
+                parts = arg.split()
+                sym = parts[0].upper().strip(".,;:") if parts else ""
+                if not sym:
+                    text = "**Usage:** `/quote MSFT`"
+                else:
+                    from sigma.tools.library import get_stock_quote
+
+                    q = get_stock_quote(sym)
+                    text = f"## Quote `{sym}`\n\n```json\n{json.dumps(q, indent=2)[:8000]}\n```"
             elif cmd in AutocompleteEngine.COMMANDS:
                 tip = AutocompleteEngine.get_command_help(cmd)
-                text = f"### {cmd}\n\n{tip}\n\nUse natural language in this chat, or the `sigma` CLI for one-shots (`sigma quote`, `sigma chart`, …)."
+                text = f"### {cmd}\n\n{tip}\n\nUse natural language in this chat, or the `sigma` CLI for one-shots (`sigma quote`, `sigma chart`, `sigma news`, …)."
             else:
                 text = f"Unknown command `{cmd}`. Try `/help`."
         except Exception as e:
@@ -588,6 +724,7 @@ class SigmaApp(App):
         return False
 
     def on_mount(self) -> None:
+        self._conversation_history: List[Dict[str, str]] = []
         self.engine = Engine()
         self.router = get_router(get_settings())
         asyncio.create_task(self._bootstrap_chat())
@@ -665,7 +802,9 @@ class SigmaApp(App):
             return
 
         assistant_msg = AssistantMessage()
+        assistant_msg._replace_on_first_chunk = True
         await chat_view.mount(assistant_msg)
+        assistant_msg.stream_text = "> _Sigma is reasoning (tools may run above)…_\n\n"
         self.query_one("#loader").add_class("active")
         self.process_query(query, assistant_msg)
 
@@ -710,26 +849,40 @@ class SigmaApp(App):
             except Exception as e:
                 pass
 
-            system_prompt = SYSTEM_PROMPT
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ]
+            settings = get_settings()
+            system_prompt = build_augmented_system_prompt(SYSTEM_PROMPT, TOOL_REGISTRY)
+            user_content = query
+            if getattr(settings, "sigma_aggressive_tools", True):
+                user_content = query + USER_TOOL_NUDGE
+            messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
+            messages.extend(self._conversation_history)
+            messages.append({"role": "user", "content": user_content})
             tools = TOOL_REGISTRY.to_llm_format()
-            
+
             response_stream = await self.router.chat(
                 messages=messages,
                 stream=True,
                 tools=tools,
                 on_tool_call=on_tool_call
             )
-            
+
+            collected: List[str] = []
             if hasattr(response_stream, "__aiter__"):
                 async for chunk in response_stream:
                     message_widget.append(chunk)
+                    collected.append(chunk)
                     chat_view.scroll_end()
             else:
-                message_widget.append(str(response_stream))
+                text = str(response_stream)
+                message_widget.append(text)
+                collected.append(text)
+
+            assistant_body = "".join(collected).strip()
+            if assistant_body:
+                self._conversation_history.append({"role": "user", "content": query})
+                self._conversation_history.append({"role": "assistant", "content": assistant_body})
+                while len(self._conversation_history) > 24:
+                    self._conversation_history.pop(0)
 
         except Exception as e:
             message_widget.append(f"\n\n**Error:** {str(e)}")
@@ -740,6 +893,7 @@ class SigmaApp(App):
             self.call_after_refresh(self._focus_input)
 
     def action_clear_chat(self) -> None:
+        self._conversation_history = []
         self.query_one("#chat-view").remove_children()
         asyncio.create_task(self._after_clear_chat())
 
