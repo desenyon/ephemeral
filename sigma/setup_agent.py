@@ -14,10 +14,96 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.markdown import Markdown
 from rich.table import Table
 
-from .config import get_settings, save_api_key, save_setting, mark_first_run_complete
+from .config import detect_ollama, get_settings, save_api_key, save_setting, mark_first_run_complete
 from .llm.registry import REGISTRY
 
 console = Console()
+
+
+def _ollama_installed_names() -> set[str]:
+    """Parse `ollama list` NAME column."""
+    try:
+        r = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return set()
+    if r.returncode != 0 or not r.stdout.strip():
+        return set()
+    names: set[str] = set()
+    for line in r.stdout.strip().splitlines()[1:]:
+        parts = line.split()
+        if parts:
+            names.add(parts[0].strip())
+    return names
+
+
+def _run_ollama_pull(model: str) -> bool:
+    """Stream `ollama pull` lines to the console; return success."""
+    console.print(f"  [dim]Pulling [bold]{model}[/bold] (large downloads can take several minutes)…[/dim]")
+    try:
+        proc = subprocess.Popen(
+            ["ollama", "pull", model],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except FileNotFoundError:
+        console.print("  [red]ollama binary not found on PATH[/red]")
+        return False
+    if proc.stdout is None:
+        return False
+    for line in proc.stdout:
+        line = line.rstrip()
+        if line:
+            console.print(f"  [dim]{line}[/dim]")
+    proc.wait()
+    if proc.returncode != 0:
+        console.print(f"  [red]ollama pull failed (exit {proc.returncode})[/red]")
+        return False
+    return True
+
+
+def _ensure_ollama_server() -> bool:
+    """Best-effort: verify API responds; start `ollama serve` in background if `ollama list` fails."""
+    try:
+        subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+        return True
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    except subprocess.CalledProcessError:
+        pass
+    ollama_bin = shutil.which("ollama")
+    if not ollama_bin:
+        return False
+    console.print("  [yellow]Starting Ollama in the background…[/yellow]")
+    try:
+        subprocess.Popen(
+            [ollama_bin, "serve"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as e:
+        console.print(f"  [red]Could not start ollama serve: {e}[/red]")
+        return False
+    for _ in range(20):
+        time.sleep(0.5)
+        ok, _ = detect_ollama()
+        if ok:
+            return True
+    return False
 
 class SetupAgent:
     def __init__(self):
@@ -34,9 +120,11 @@ class SetupAgent:
     def run(self):
         console.clear()
         console.print(Panel.fit(
-            "[bold blue]Sigma Setup Wizard v3.7.1[/bold blue]\n[dim]Initializing elite financial research environment...[/dim]", 
+            "[bold blue]Sigma Setup Wizard v3.7.2[/bold blue]\n"
+            "[dim]Wire up an LLM, then optional data keys (Polygon, Alpha Vantage, Exa) for live quotes and news.[/dim]\n"
+            "[dim]Guide: https://github.com/desenyon/sigma#readme[/dim]",
             border_style="blue",
-            padding=(1, 2)
+            padding=(1, 2),
         ))
         
         self.check_system_requirements()
@@ -100,18 +188,33 @@ class SetupAgent:
             console.print("  [green][OK][/green] Ollama is already installed.")
             self.checks["ollama"] = True
         else:
-            console.print("  [yellow]Ollama not found.[/yellow]")
-            if Confirm.ask("  Install Ollama automatically?"):
+            console.print("  [yellow]Ollama not found on PATH.[/yellow]")
+            if self.os_type == "darwin":
+                console.print(
+                    "  [dim]macOS: install the app from https://ollama.com/download "
+                    "or run: [bold]curl -fsSL https://ollama.com/install.sh | sh[/bold][/dim]"
+                )
+            else:
+                console.print("  [dim]Install from https://ollama.com/download[/dim]")
+            if Confirm.ask("  Run the official install script now? (requires curl)"):
                 try:
-                    console.print("  [dim]Running installation script...[/dim]")
-                    # Use curl | sh as requested
-                    install_cmd = "curl -fsSL https://ollama.com/install.sh | sh"
-                    subprocess.run(install_cmd, shell=True, check=True)
-                    self.checks["ollama"] = True
-                    console.print("  [green][OK][/green] Ollama installed successfully.")
-                except Exception as e:
-                    console.print(f"  [red]Failed to install Ollama: {e}[/red]")
-                    console.print("  Please install manually from https://ollama.com")
+                    console.print("  [dim]Running https://ollama.com/install.sh …[/dim]")
+                    subprocess.run(
+                        "curl -fsSL https://ollama.com/install.sh | sh",
+                        shell=True,
+                        check=True,
+                    )
+                    if shutil.which("ollama"):
+                        self.checks["ollama"] = True
+                        console.print("  [green][OK][/green] Ollama installed.")
+                    else:
+                        console.print(
+                            "  [yellow]Install script finished but `ollama` is not on PATH yet. "
+                            "Open a new terminal or add it to PATH.[/yellow]"
+                        )
+                except subprocess.CalledProcessError as e:
+                    console.print(f"  [red]Install script failed: {e}[/red]")
+                    console.print("  Install manually from https://ollama.com")
 
     def _install_package(self, package: str, name: str):
         with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}")) as progress:
@@ -124,39 +227,36 @@ class SetupAgent:
                 console.print(f"  [red]Failed to install {name}: {e}[/red]")
 
     def configure_local_llm(self):
-        console.print("\n[bold cyan]3. Local AI Configuration[/bold cyan]")
+        console.print("\n[bold cyan]3. Local AI Configuration (Ollama)[/bold cyan]")
         
         if not self.checks["ollama"]:
-            console.print("  [dim]Skipping (Ollama not available)[/dim]")
+            console.print("  [dim]Skipping — Ollama not installed. Install it above or use a cloud API key in step 4.[/dim]")
             return
-            
-        # Ensure Ollama is running
-        try:
-            subprocess.run(["ollama", "list"], capture_output=True, check=True)
-        except subprocess.CalledProcessError:
-            console.print("  [yellow]Starting Ollama server...[/yellow]")
-            subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(3)
-            
-        models = ["qwen3.5:8b", "qwen3.5:4b", "llama3.3", "mistral"]
-        current_models = subprocess.run(["ollama", "list"], capture_output=True, text=True).stdout
-        
-        console.print("  Available to pull:")
-        for m in models:
-            status = "[green]Installed[/green]" if m in current_models else "[dim]Not installed[/dim]"
-            console.print(f"  - {m:<15} {status}")
-            
-        if Confirm.ask("  Pull/Update a model now? (Recommended: qwen3.5:8b for local tool calling)"):
-            model = Prompt.ask("  Enter model name", default="qwen3.5:8b")
-            with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), BarColumn()) as progress:
-                task = progress.add_task(f"Pulling {model}...", total=None)
-                # Note: subprocess.run will block, so progress bar won't update smoothly without more complex async handling
-                # For simplicity in setup script, we just show spinner
-                subprocess.run(["ollama", "pull", model], check=True)
-                progress.update(task, completed=True)
-            
-            save_setting("default_model", model)
-            save_setting("ollama_url", "http://localhost:11434")
+
+        if not _ensure_ollama_server():
+            console.print(
+                "  [yellow]Could not talk to Ollama. Start Ollama Desktop (macOS) or run `ollama serve`, then retry setup.[/yellow]"
+            )
+            return
+
+        installed = _ollama_installed_names()
+        suggested = ["qwen3.5:8b", "qwen3.5:4b", "llama3.3", "mistral"]
+        console.print("  Suggested models for tool use:")
+        for m in suggested:
+            st = "[green]installed[/green]" if m in installed else "[dim]not installed[/dim]"
+            console.print(f"    • {m:<18} {st}")
+
+        if Confirm.ask("  Pull a model now? (recommended: qwen3.5:8b)", default=True):
+            model = Prompt.ask("  Model name", default="qwen3.5:8b")
+            model = model.strip()
+            if not model:
+                console.print("  [yellow]Skipped empty model name.[/yellow]")
+                return
+            if _run_ollama_pull(model):
+                save_setting("default_model", model)
+                save_setting("ollama_host", "http://localhost:11434")
+                save_setting("default_provider", "ollama")
+                console.print("  [green][OK][/green] Saved DEFAULT_MODEL, OLLAMA_HOST, and DEFAULT_PROVIDER=ollama.")
 
     def configure_api_keys(self):
         console.print("\n[bold cyan]4. API Key Verification[/bold cyan]")
