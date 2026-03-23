@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live Integration Test for Sigma v3.7.1
+Live Integration Test for Sigma v3.7.2
 WARNING: This script makes REAL API calls and consumes quota.
 """
 
