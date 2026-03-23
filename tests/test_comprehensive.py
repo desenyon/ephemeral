@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Comprehensive test suite for Sigma v3.7.1.
+"""Comprehensive test suite for Sigma v3.7.2.
 
 Tests all core functionality including:
 - Configuration and settings
@@ -31,7 +31,7 @@ class TestVersion(unittest.TestCase):
         from sigma.cli import __version__ as cli_version
         from sigma.setup import __version__ as setup_version
         
-        expected = "3.7.1"
+        expected = "3.7.2"
         self.assertEqual(__version__, expected, "sigma/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "sigma/app.py version mismatch")
         self.assertEqual(config_version, expected, "sigma/config.py version mismatch")
@@ -242,6 +242,32 @@ class TestTools(unittest.TestCase):
                 self.assertIn(key, indicators, f"Missing indicator: {key}")
 
 
+class TestModelRegistryRouting(unittest.TestCase):
+    """Provider routing for OpenAI-compatible and cloud APIs."""
+
+    def test_groq_and_xai_models_map_to_providers(self):
+        from sigma.llm.registry import REGISTRY
+
+        self.assertEqual(REGISTRY.get_provider("llama-3.3-70b-versatile"), "groq")
+        self.assertEqual(REGISTRY.get_provider("grok-4"), "xai")
+        self.assertEqual(REGISTRY.get_provider("mixtral-8x7b-32768"), "groq")
+
+    def test_router_registers_groq_when_key_set(self):
+        from sigma.llm.router import LLMRouter
+
+        class S:
+            openai_api_key = None
+            anthropic_api_key = None
+            google_api_key = None
+            groq_api_key = "g-sk-test"
+            xai_api_key = None
+            ollama_host = "http://localhost:11434"
+
+        r = LLMRouter(S())
+        self.assertIn("groq", r.providers)
+        self.assertIn("ollama", r.providers)
+
+
 class TestLLMClients(unittest.TestCase):
     """Test LLM client initialization."""
     
@@ -309,13 +335,13 @@ class TestAppComponents(unittest.TestCase):
         
         # Check for key phrases that indicate comprehensive prompt
         required_phrases = [
-            "proactive",
-            "actionable",
-            "data-driven",
-            "recommendation",
-            "STRONG BUY"
+            "fetch_news_digest",
+            "evidence",
+            "tools",
+            "markdown",
+            "risks",
         ]
-        
+
         prompt_lower = SYSTEM_PROMPT.lower()
         for phrase in required_phrases:
             self.assertIn(phrase.lower(), prompt_lower, f"Missing phrase: {phrase}")
@@ -326,7 +352,7 @@ class TestAppComponents(unittest.TestCase):
         
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.7.1", WELCOME_BANNER)
+        self.assertIn("3.7.2", WELCOME_BANNER)
     
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -410,7 +436,7 @@ class TestImports(unittest.TestCase):
             __version__
         )
         
-        self.assertEqual(__version__, "3.7.1")
+        self.assertEqual(__version__, "3.7.2")
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -480,7 +506,7 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("SIGMA v3.7.1 - COMPREHENSIVE TEST SUITE")
+    print("SIGMA v3.7.2 - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
     
     # Create test suite
