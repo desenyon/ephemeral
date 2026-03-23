@@ -1,4 +1,4 @@
-"""CLI entry point for Sigma v3.7.1 — Rich UX layer over the TUI and one-shot commands."""
+"""CLI entry point for Sigma v3.7.2 — Rich UX layer over the TUI and one-shot commands."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from .config import (
     save_setting,
 )
 
-__version__ = "3.7.1"
+__version__ = "3.7.2"
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,6 +49,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "  sigma quote NVDA AMD\n"
             "  sigma chart SPY --period 1y -o /tmp/spy.png\n"
             "  sigma doctor                  # Health check\n"
+            "  sigma news AAPL               # Unified headline digest\n"
+            "  sigma tools                   # List LLM tool names\n"
             "  sigma --status                # Config + services\n"
         ),
     )
@@ -126,6 +128,18 @@ def _build_parser() -> argparse.ArgumentParser:
     cmp_p.add_argument("symbols", nargs="+", help="Tickers to compare")
 
     subparsers.add_parser("doctor", help="Verify Python deps, binaries, and API key presence")
+
+    news_p = subparsers.add_parser("news", help="Unified news digest for a ticker (Polygon / AV / Exa / Yahoo)")
+    news_p.add_argument("symbol", help="Ticker symbol")
+    news_p.add_argument(
+        "-n",
+        "--limit",
+        type=int,
+        default=10,
+        help="Max headlines (default: 10)",
+    )
+
+    subparsers.add_parser("tools", help="List tool names available to the LLM")
 
     return parser
 
@@ -225,6 +239,24 @@ def main() -> int:
         settings = get_settings()
         return run_doctor(console, settings)
 
+    if args.command == "news":
+        from json import dumps
+
+        from .tools.library import fetch_news_digest
+
+        r = fetch_news_digest(symbol=args.symbol.upper(), limit=args.limit)
+        console.print(dumps(r, indent=2))
+        if r.get("articles"):
+            return 0
+        return 1
+
+    if args.command == "tools":
+        from .tools.registry import TOOL_REGISTRY
+
+        for name in sorted(TOOL_REGISTRY.get_tool_names()):
+            console.print(f"  {name}")
+        return 0
+
     # Default TUI: optional splash
     print_banner(console, __version__)
     print_quick_start(console)
@@ -239,8 +271,11 @@ def main() -> int:
 
 
 def handle_ask(console, query: str) -> int:
+    from .app import SYSTEM_PROMPT
     from .llm import get_router
+    from .llm.tool_guidance import USER_TOOL_NUDGE, build_augmented_system_prompt
     from .tools import execute_tool, get_tools_for_llm
+    from .tools.registry import TOOL_REGISTRY
 
     settings = get_settings()
     console.print(f"\n[dim]Model:[/dim] [bold]{settings.default_model}[/bold]\n")
@@ -249,15 +284,15 @@ def handle_ask(console, query: str) -> int:
         router = get_router(settings)
 
         async def run_query():
+            user_text = query
+            if settings.sigma_aggressive_tools:
+                user_text = query + USER_TOOL_NUDGE
             messages = [
                 {
                     "role": "system",
-                    "content": (
-                        "You are Sigma, a helpful financial intelligence assistant. "
-                        "Use tools for accurate, data-driven answers."
-                    ),
+                    "content": build_augmented_system_prompt(SYSTEM_PROMPT, TOOL_REGISTRY),
                 },
-                {"role": "user", "content": query},
+                {"role": "user", "content": user_text},
             ]
 
             async def handle_tool(name: str, args: dict):
