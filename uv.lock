@@ -649,6 +649,90 @@ wheels = [
 ]
 
 [[package]]
+name = "ephemeral-terminal"
+version = "3.8.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "anthropic" },
+    { name = "google-genai" },
+    { name = "groq" },
+    { name = "httpx" },
+    { name = "kaleido" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "pandas" },
+    { name = "pillow" },
+    { name = "plotext" },
+    { name = "plotly" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "scipy" },
+    { name = "textual" },
+    { name = "yfinance" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "black" },
+    { name = "lean" },
+    { name = "mypy" },
+    { name = "py2app" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+dev = [
+    { name = "black" },
+    { name = "mypy" },
+    { name = "py2app" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+lean = [
+    { name = "lean" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9.0" },
+    { name = "anthropic", specifier = ">=0.18.0" },
+    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
+    { name = "ephemeral-terminal", extras = ["dev", "lean"], marker = "extra == 'all'" },
+    { name = "google-genai", specifier = ">=1.0.0" },
+    { name = "groq", specifier = ">=0.4.0" },
+    { name = "httpx", specifier = ">=0.26.0" },
+    { name = "kaleido", specifier = ">=0.2.1" },
+    { name = "lean", marker = "extra == 'lean'", specifier = ">=1.0.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
+    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "openai", specifier = ">=1.12.0" },
+    { name = "pandas", specifier = ">=2.2.0" },
+    { name = "pillow", specifier = ">=10.2.0" },
+    { name = "plotext", specifier = ">=5.2.8" },
+    { name = "plotly", specifier = ">=5.18.0" },
+    { name = "py2app", marker = "extra == 'dev'", specifier = ">=0.28.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
+    { name = "pydantic-settings", specifier = ">=2.1.0" },
+    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "rich", specifier = ">=13.7.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
+    { name = "scipy", specifier = ">=1.12.0" },
+    { name = "textual", specifier = ">=0.47.0" },
+    { name = "yfinance", specifier = ">=0.2.36" },
+]
+provides-extras = ["dev", "lean", "all"]
+
+[[package]]
 name = "fonttools"
 version = "4.62.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2656,90 +2740,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/4f/db/cfac1baf10650ab4d
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9d/76/f789f7a86709c6b087c5a2f52f911838cad707cc613162401badc665acfe/setuptools-82.0.1-py3-none-any.whl", hash = "sha256:a59e362652f08dcd477c78bb6e7bd9d80a7995bc73ce773050228a348ce2e5bb", size = 1006223, upload-time = "2026-03-09T12:47:15.026Z" },
 ]
-
-[[package]]
-name = "sigma-terminal"
-version = "3.7.2"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "anthropic" },
-    { name = "google-genai" },
-    { name = "groq" },
-    { name = "httpx" },
-    { name = "kaleido" },
-    { name = "numpy" },
-    { name = "openai" },
-    { name = "pandas" },
-    { name = "pillow" },
-    { name = "plotext" },
-    { name = "plotly" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'" },
-    { name = "python-dotenv" },
-    { name = "requests" },
-    { name = "rich" },
-    { name = "scipy" },
-    { name = "textual" },
-    { name = "yfinance" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "black" },
-    { name = "lean" },
-    { name = "mypy" },
-    { name = "py2app" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-dev = [
-    { name = "black" },
-    { name = "mypy" },
-    { name = "py2app" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-lean = [
-    { name = "lean" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.0" },
-    { name = "anthropic", specifier = ">=0.18.0" },
-    { name = "black", marker = "extra == 'dev'", specifier = ">=24.0.0" },
-    { name = "google-genai", specifier = ">=1.0.0" },
-    { name = "groq", specifier = ">=0.4.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "kaleido", specifier = ">=0.2.1" },
-    { name = "lean", marker = "extra == 'lean'", specifier = ">=1.0.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
-    { name = "numpy", specifier = ">=1.26.0" },
-    { name = "openai", specifier = ">=1.12.0" },
-    { name = "pandas", specifier = ">=2.2.0" },
-    { name = "pillow", specifier = ">=10.2.0" },
-    { name = "plotext", specifier = ">=5.2.8" },
-    { name = "plotly", specifier = ">=5.18.0" },
-    { name = "py2app", marker = "extra == 'dev'", specifier = ">=0.28.0" },
-    { name = "pydantic", specifier = ">=2.6.0" },
-    { name = "pydantic-settings", specifier = ">=2.1.0" },
-    { name = "pyobjc-framework-cocoa", marker = "sys_platform == 'darwin'", specifier = ">=10.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "requests", specifier = ">=2.31.0" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.2.0" },
-    { name = "scipy", specifier = ">=1.12.0" },
-    { name = "sigma-terminal", extras = ["dev", "lean"], marker = "extra == 'all'" },
-    { name = "textual", specifier = ">=0.47.0" },
-    { name = "yfinance", specifier = ">=0.2.36" },
-]
-provides-extras = ["dev", "lean", "all"]
 
 [[package]]
 name = "simplejson"
