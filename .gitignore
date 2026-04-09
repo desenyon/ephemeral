@@ -112,9 +112,10 @@ venv.bak/
 .LSOverride
 ._*
 
-# Sigma specific
+# Ephemeral specific
 *.dmg
 *.app
-Sigma.app/
+Ephemeral.app/
 output/
 exports/
+node_modules/

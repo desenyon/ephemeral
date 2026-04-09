@@ -35,8 +35,30 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: ephemeral/ink_ui/package-lock.json
+
       - name: Install dependencies
         run: uv sync --extra dev
+
+      - name: Install Ink UI dependencies
+        run: npm ci --prefix ephemeral/ink_ui
+
+      - name: Lint
+        run: uv run ruff check ephemeral tests
+
+      - name: Compile smoke test
+        run: uv run python -m compileall ephemeral tests
+
+      - name: Ink typecheck
+        run: npm --prefix ephemeral/ink_ui run typecheck
+
+      - name: Ink smoke test
+        run: npm --prefix ephemeral/ink_ui run smoke
 
       - name: Run tests
         run: uv run pytest tests/ -q --tb=short

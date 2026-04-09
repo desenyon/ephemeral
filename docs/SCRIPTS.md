@@ -1,6 +1,6 @@
 # Scripts Directory Documentation
 
-The `scripts/` directory contains essential automation utilities for building, packaging, and distributing the Sigma application.
+The `scripts/` directory contains essential automation utilities for building, packaging, and distributing the Ephemeral application.
 
 ## Contents
 
@@ -15,10 +15,10 @@ The `scripts/` directory contains essential automation utilities for building, p
 **Dependencies**: `python3`, `pip`, `build`, `twine`.
 
 ### 2. `create_app.py`
-**Purpose**: Generates a native macOS `.app` bundle for Sigma.
+**Purpose**: Generates a native macOS `.app` bundle for Ephemeral.
 **Details**:
-- Creates the folder structure (`Sigma.app/Contents/MacOS`, `Resources`, etc.).
-- Generates `Info.plist` with metadata (Bundle ID: `com.sigma.app`).
+- Creates the folder structure (`Ephemeral.app/Contents/MacOS`, `Resources`, etc.).
+- Generates `Info.plist` with metadata (Bundle ID: `com.ephemeral.app`).
 - Creates a launcher script that detects the user's Python installation (python.org, `/usr/local`, or system) and launches the module.
 - Handles icon generation (currently placeholder).
 **Dependencies**: Standard Python libraries (`os`, `plistlib`, `shutil`).

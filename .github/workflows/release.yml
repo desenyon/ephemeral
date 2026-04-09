@@ -60,17 +60,17 @@ jobs:
 
       - name: Build with PyInstaller (Unix)
         if: runner.os != 'Windows'
-        run: pyinstaller --name sigma-${{ runner.os }} --onefile --add-data "sigma/ui:sigma/ui" sigma/__main__.py
+        run: pyinstaller --name ephemeral-${{ runner.os }} --onefile --add-data "ephemeral/ui:ephemeral/ui" ephemeral/__main__.py
 
       - name: Build with PyInstaller (Windows)
         if: runner.os == 'Windows'
-        run: pyinstaller --name sigma-${{ runner.os }} --onefile --add-data "sigma/ui;sigma/ui" sigma/__main__.py
+        run: pyinstaller --name ephemeral-${{ runner.os }} --onefile --add-data "ephemeral/ui;ephemeral/ui" ephemeral/__main__.py
 
       - name: Upload binary artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sigma-${{ runner.os }}
-          path: dist/sigma-*
+          name: ephemeral-${{ runner.os }}
+          path: dist/ephemeral-*
 
   publish-pypi:
     name: Publish to PyPI
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/sigma-terminal
+      url: https://pypi.org/p/ephemeral-terminal
 
     permissions:
       id-token: write
@@ -113,7 +113,7 @@ jobs:
       - name: Download binary artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: sigma-*
+          pattern: ephemeral-*
           path: binaries
           merge-multiple: true
 
@@ -129,18 +129,18 @@ jobs:
           echo "### Installation" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo '```bash' >> RELEASE_NOTES.md
-          echo "pip install sigma-terminal==${{ steps.get_version.outputs.VERSION }}" >> RELEASE_NOTES.md
+          echo "pip install ephemeral-terminal==${{ steps.get_version.outputs.VERSION }}" >> RELEASE_NOTES.md
           echo '```' >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "### Downloads" >> RELEASE_NOTES.md
-          echo "- **macOS**: \`sigma-macOS\`" >> RELEASE_NOTES.md
-          echo "- **Linux**: \`sigma-Linux\`" >> RELEASE_NOTES.md
-          echo "- **Windows**: \`sigma-Windows.exe\`" >> RELEASE_NOTES.md
+          echo "- **macOS**: \`ephemeral-macOS\`" >> RELEASE_NOTES.md
+          echo "- **Linux**: \`ephemeral-Linux\`" >> RELEASE_NOTES.md
+          echo "- **Windows**: \`ephemeral-Windows.exe\`" >> RELEASE_NOTES.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Sigma v${{ steps.get_version.outputs.VERSION }}
+          name: Ephemeral v${{ steps.get_version.outputs.VERSION }}
           body_path: RELEASE_NOTES.md
           files: |
             dist/*
