@@ -1,0 +1,602 @@
+"""Configuration management for Ephemeral v3.8.0."""
+
+import json
+import shutil
+import subprocess
+from enum import Enum, IntEnum
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+from dotenv import load_dotenv
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from .version import VERSION
+
+# Load environment variables from .env file immediately
+load_dotenv()
+
+
+__version__ = VERSION
+
+
+class ErrorCode(IntEnum):
+    """Error codes for consistent error handling."""
+    # General errors (1000-1099)
+    UNKNOWN_ERROR = 1000
+    INVALID_INPUT = 1001
+    TIMEOUT = 1002
+
+    # API Key errors (1100-1199)
+    API_KEY_MISSING = 1100
+    API_KEY_INVALID = 1101
+    API_KEY_EXPIRED = 1102
+    API_KEY_RATE_LIMITED = 1103
+
+    # Provider errors (1200-1299)
+    PROVIDER_UNAVAILABLE = 1200
+    PROVIDER_ERROR = 1201
+    MODEL_NOT_FOUND = 1202
+    MODEL_DEPRECATED = 1203
+
+    # Data errors (1300-1399)
+    SYMBOL_NOT_FOUND = 1300
+    DATA_UNAVAILABLE = 1301
+    MARKET_CLOSED = 1302
+    RATE_LIMIT_EXCEEDED = 1303
+
+    # Network errors (1400-1499)
+    CONNECTION_ERROR = 1400
+    REQUEST_FAILED = 1401
+    RESPONSE_INVALID = 1402
+
+
+class EphemeralError(Exception):
+    """Custom exception with error codes."""
+
+    def __init__(self, code: ErrorCode, message: str, details: Optional[dict] = None):
+        self.code = code
+        self.message = message
+        self.details = details or {}
+        super().__init__(f"[E{code}] {message}")
+
+    def to_dict(self) -> dict:
+        return {
+            "error_code": int(self.code),
+            "error_name": self.code.name,
+            "message": self.message,
+            "details": self.details
+        }
+
+
+class LLMProvider(str, Enum):
+    """Supported LLM providers."""
+    GOOGLE = "google"
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GROQ = "groq"
+    XAI = "xai"
+    OLLAMA = "ollama"
+
+
+# Available models per provider (2026 tier lists — API-style ids for routing/docs)
+AVAILABLE_MODELS = {
+    "google": [
+        "gemini-3.1-pro",       # Flagship reasoning / multimodal
+        "gemini-3-pro",         # Strong general multimodal
+        "gemini-3-flash",       # Fast, high-throughput
+        "gemini-3-pro-image",   # Image-heavy workflows
+    ],
+    "openai": [
+        "gpt-5.4",              # Top-tier general / agentic
+        "gpt-5.2",              # Strong reasoning & knowledge work
+        "gpt-5.1",
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-nano",
+        "o3-preview",           # Deep reasoning (preview)
+        "o3-mini",
+    ],
+    "anthropic": [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6",
+    ],
+    "groq": [
+        "llama-3.3-70b-versatile",
+        "llama-3.3-8b-instant",
+        "mixtral-8x7b-32768",
+    ],
+    "xai": [
+        "grok-4",
+        "grok-4-mini",
+    ],
+    "ollama": [
+        "qwen3.5:8b",           # Strong local default (pull when available)
+        "qwen3.5:4b",
+        "qwen2.5:1.5b",
+        "qwen2.5:7b",
+        "llama3.3",
+        "llama3.2",
+        "mistral",
+        "deepseek-r1",
+    ],
+}
+
+# Config directory
+CONFIG_DIR = Path.home() / ".ephemeral"
+CONFIG_FILE = CONFIG_DIR / "config.env"
+FIRST_RUN_MARKER = CONFIG_DIR / ".first_run_complete"
+
+
+def is_first_run() -> bool:
+    """
+    Check if this is the first run of the application.
+
+    Returns False (not first run) if:
+    - The first run marker exists, OR
+    - A config file exists with at least one API key configured
+
+    This ensures users who upgrade from older versions or manually
+    configure their ~/.ephemeral/config.env don't see the setup wizard.
+    """
+    # Check for explicit marker
+    if FIRST_RUN_MARKER.exists():
+        return False
+
+    # Check if config file exists and has API keys
+    if CONFIG_FILE.exists():
+        try:
+            content = CONFIG_FILE.read_text()
+            # Check if any API key is set (not empty)
+            api_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+                       "GROQ_API_KEY", "XAI_API_KEY"]
+            for key in api_keys:
+                # Look for KEY=value where value is not empty
+                for line in content.splitlines():
+                    if line.startswith(f"{key}="):
+                        value = line.split("=", 1)[1].strip()
+                        if value and value not in ('""', "''", ""):
+                            # Found a configured API key - not first run
+                            mark_first_run_complete()  # Create marker for future
+                            return False
+        except Exception:
+            pass
+
+    return True
+
+
+def mark_first_run_complete() -> None:
+    """Mark that the first run setup has been completed."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    FIRST_RUN_MARKER.touch()
+
+
+def detect_lean_installation() -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Auto-detect LEAN/QuantConnect installation.
+    Returns: (is_installed, cli_path, lean_directory)
+    """
+    lean_cli_path = None
+    lean_directory = None
+
+    # Check if lean CLI is available in PATH
+    lean_cli = shutil.which("lean")
+    if lean_cli:
+        lean_cli_path = lean_cli
+
+    # Check common installation paths for LEAN directory
+    common_paths = [
+        Path.home() / "Lean",
+        Path.home() / ".lean",
+        Path.home() / "QuantConnect" / "Lean",
+        Path("/opt/lean"),
+        Path.home() / "Projects" / "Lean",
+        Path.home() / ".local" / "share" / "lean",
+    ]
+
+    for path in common_paths:
+        if path.exists():
+            # Check for LEAN directory structure
+            if (path / "Launcher").exists() or (path / "Algorithm.Python").exists() or (path / "lean.json").exists():
+                lean_directory = str(path)
+                break
+
+    # Check if lean is installed via pip (check both pip and pip3)
+    if not lean_cli_path:
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                result = subprocess.run(
+                    [pip_cmd, "show", "lean"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    # Parse location from pip show output
+                    for line in result.stdout.split("\n"):
+                        if line.startswith("Location:"):
+                            # lean is installed via pip
+                            lean_cli_path = "lean"
+                            break
+                    if lean_cli_path:
+                        break
+            except (subprocess.TimeoutExpired, FileNotFoundError, Exception):
+                continue
+
+    # Also check if lean command works directly
+    if not lean_cli_path:
+        try:
+            result = subprocess.run(
+                ["lean", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                lean_cli_path = "lean"
+        except (FileNotFoundError, subprocess.TimeoutExpired, Exception):
+            pass
+
+    is_installed = lean_cli_path is not None or lean_directory is not None
+    return is_installed, lean_cli_path, lean_directory
+
+
+async def install_lean_cli() -> Tuple[bool, str]:
+    """
+    Install LEAN CLI via pip.
+    Returns: (success, message)
+    """
+    import asyncio
+
+    try:
+        # Try pip3 first, then pip
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                process = await asyncio.create_subprocess_exec(
+                    pip_cmd, "install", "lean",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
+
+                if process.returncode == 0:
+                    return True, "LEAN CLI installed successfully!"
+            except (FileNotFoundError, asyncio.TimeoutError):
+                continue
+
+        return False, "Failed to install LEAN CLI. Please install manually: pip install lean"
+    except Exception as e:
+        return False, f"Installation error: {str(e)}"
+
+
+def install_lean_cli_sync() -> Tuple[bool, str]:
+    """
+    Install LEAN CLI via pip (synchronous version).
+    Returns: (success, message)
+    """
+    try:
+        # Try pip3 first, then pip
+        for pip_cmd in ["pip3", "pip"]:
+            try:
+                result = subprocess.run(
+                    [pip_cmd, "install", "lean"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120
+                )
+
+                if result.returncode == 0:
+                    return True, "LEAN CLI installed successfully!"
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+
+        return False, "Failed to install LEAN CLI. Please install manually: pip install lean"
+    except Exception as e:
+        return False, f"Installation error: {str(e)}"
+
+
+def detect_ollama() -> Tuple[bool, Optional[str]]:
+    """
+    Auto-detect Ollama installation and available models.
+    Returns: (is_running, host_url)
+    """
+    import urllib.error
+    import urllib.request
+
+    hosts_to_check = [
+        "http://localhost:11434",
+        "http://127.0.0.1:11434",
+    ]
+
+    for host in hosts_to_check:
+        try:
+            req = urllib.request.Request(f"{host}/api/tags", method="GET")
+            with urllib.request.urlopen(req, timeout=2) as resp:
+                if resp.status == 200:
+                    return True, host
+        except (urllib.error.URLError, OSError):
+            continue
+
+    return False, None
+
+
+def list_ollama_model_names(host: str) -> List[str]:
+    """Return model names reported by Ollama ``/api/tags`` (empty if unreachable)."""
+    import urllib.error
+    import urllib.request
+
+    if not host:
+        return []
+    try:
+        req = urllib.request.Request(f"{host.rstrip('/')}/api/tags", method="GET")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode())
+        models = data.get("models") or []
+        return [str(m.get("name", "")).strip() for m in models if m.get("name")]
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, ValueError, TypeError):
+        return []
+
+
+def ollama_has_model(host: str, model: str) -> bool:
+    """Return True if ``model`` appears in the local Ollama registry."""
+    if not host or not (model or "").strip():
+        return False
+    want = model.strip()
+    names = list_ollama_model_names(host)
+    if want in names:
+        return True
+    # Tag-flexible match (e.g. llama3.2 vs llama3.2:latest)
+    for n in names:
+        base = n.split(":")[0]
+        if want == n or want == base or n.startswith(want + ":") or want.startswith(base + ":"):
+            return True
+    return False
+
+
+def needs_llm_setup(settings: "Settings") -> bool:
+    """
+    True when the default provider cannot run: missing API key (cloud) or
+    Ollama down / ``DEFAULT_MODEL`` not pulled (local).
+    """
+    p = settings.default_provider
+    if p != LLMProvider.OLLAMA:
+        return settings.get_api_key(p) is None
+    ok, host = detect_ollama()
+    if not ok or not host:
+        return True
+    model = (settings.default_model or "").strip()
+    if not model:
+        return True
+    return not ollama_has_model(host, model)
+
+
+def resolve_ollama_autocomplete_model(settings: "Settings") -> Optional[str]:
+    """Pick an installed Ollama model for inline completion (smaller / faster preferred)."""
+    ok, host = detect_ollama()
+    if not ok or not host:
+        return None
+    names = list_ollama_model_names(host)
+    if not names:
+        return None
+    candidates = [
+        settings.default_model,
+        settings.ollama_model,
+        "qwen2.5:1.5b",
+        "qwen3.5:4b",
+        "qwen3.5:8b",
+        "qwen2.5:7b",
+        "llama3.2",
+        "mistral",
+    ]
+    for c in candidates:
+        if c and c in names:
+            return c
+    for n in names:
+        if any(x in n for x in ("1.5b", "4b", ":7b", "8b")):
+            return n
+    return names[0]
+
+
+class Settings(BaseSettings):
+    """Application settings."""
+
+    # Provider settings
+    default_provider: LLMProvider = LLMProvider.OLLAMA
+    default_model: str = Field(default="qwen3.5:8b", alias="DEFAULT_MODEL")
+
+    # LLM API Keys
+    google_api_key: Optional[str] = Field(default=None, alias="GOOGLE_API_KEY")
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
+    groq_api_key: Optional[str] = Field(default=None, alias="GROQ_API_KEY")
+    xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
+
+    # Model settings - REAL API NAMES (Feb 2026)
+    google_model: str = "gemini-3.1-pro"
+    openai_model: str = "gpt-5.4"
+    anthropic_model: str = "claude-sonnet-4-6"
+    groq_model: str = "llama-3.3-70b-versatile"
+    xai_model: str = "grok-4"
+    ollama_model: str = "qwen3.5:8b"
+
+    # Ollama settings
+    ollama_host: str = "http://localhost:11434"
+
+    # LLM behavior: append a user-message nudge to prefer multiple tool calls (TUI + ephemeral ask)
+    ephemeral_aggressive_tools: bool = Field(default=True, alias="EPHEMERAL_AGGRESSIVE_TOOLS")
+
+    # LEAN settings
+    lean_cli_path: Optional[str] = Field(default=None, alias="LEAN_CLI_PATH")
+    lean_directory: Optional[str] = Field(default=None, alias="LEAN_DIRECTORY")
+    lean_enabled: bool = Field(default=False, alias="LEAN_ENABLED")
+
+    # Data API keys
+    alpha_vantage_api_key: Optional[str] = Field(default=None, alias="ALPHA_VANTAGE_API_KEY")
+    polygon_api_key: Optional[str] = Field(default=None, alias="POLYGON_API_KEY")
+    exa_api_key: Optional[str] = Field(default=None, alias="EXA_API_KEY")
+
+    model_config = SettingsConfigDict(
+        env_file=(".env", str(CONFIG_FILE)),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    def get_api_key(self, provider: LLMProvider) -> Optional[str]:
+        """Get API key for a provider."""
+        key_map = {
+            LLMProvider.GOOGLE: self.google_api_key,
+            LLMProvider.OPENAI: self.openai_api_key,
+            LLMProvider.ANTHROPIC: self.anthropic_api_key,
+            LLMProvider.GROQ: self.groq_api_key,
+            LLMProvider.XAI: self.xai_api_key,
+            LLMProvider.OLLAMA: None,  # No key needed
+        }
+        return key_map.get(provider)
+
+    def get_model(self, provider: LLMProvider) -> str:
+        """Get model for a provider."""
+        model_map = {
+            LLMProvider.GOOGLE: self.google_model,
+            LLMProvider.OPENAI: self.openai_model,
+            LLMProvider.ANTHROPIC: self.anthropic_model,
+            LLMProvider.GROQ: self.groq_model,
+            LLMProvider.XAI: self.xai_model,
+            LLMProvider.OLLAMA: self.ollama_model,
+        }
+        return model_map.get(provider, "")
+
+    def get_available_providers(self) -> list[LLMProvider]:
+        """Get list of providers with configured API keys."""
+        available = []
+        for provider in LLMProvider:
+            if provider == LLMProvider.OLLAMA:
+                available.append(provider)  # Always available
+            elif self.get_api_key(provider):
+                available.append(provider)
+        return available
+
+    def is_configured(self) -> bool:
+        """Check if at least one provider is configured."""
+        return len(self.get_available_providers()) > 0
+
+
+def get_settings() -> Settings:
+    """Get application settings."""
+    # Ensure config directory exists
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Load from environment and config file
+    return Settings()
+
+
+def save_api_key(provider: str, key: str) -> bool:
+    """Save an API key to the config file. Returns True on success."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Read existing config
+    config = {}
+    if CONFIG_FILE.exists():
+        try:
+            with open(CONFIG_FILE) as f:
+                for line in f:
+                    line = line.strip()
+                    if "=" in line and not line.startswith("#"):
+                        k, v = line.split("=", 1)
+                        config[k] = v
+        except IOError:
+            pass
+
+    # Map provider names to config keys (LLM + Data providers)
+    key_map = {
+        # LLM providers
+        "google": "GOOGLE_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "xai": "XAI_API_KEY",
+        # Data providers
+        "polygon": "POLYGON_API_KEY",
+        "alphavantage": "ALPHA_VANTAGE_API_KEY",
+        "alpha_vantage": "ALPHA_VANTAGE_API_KEY",
+        "exa": "EXA_API_KEY",
+    }
+
+    env_key = key_map.get(provider.lower())
+    if not env_key:
+        return False
+
+    config[env_key] = key
+
+    # Write back
+    try:
+        with open(CONFIG_FILE, "w") as f:
+            f.write("# Ephemeral Configuration\n")
+            f.write(f"# Updated: {__import__('datetime').datetime.now().isoformat()}\n\n")
+
+            # Group by type for readability
+            llm_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "XAI_API_KEY"]
+            data_keys = ["POLYGON_API_KEY", "ALPHA_VANTAGE_API_KEY", "EXA_API_KEY"]
+
+            f.write("# LLM Provider Keys\n")
+            for k in llm_keys:
+                if k in config:
+                    f.write(f"{k}={config[k]}\n")
+
+            f.write("\n# Data Provider Keys\n")
+            for k in data_keys:
+                if k in config:
+                    f.write(f"{k}={config[k]}\n")
+
+            f.write("\n# Other Settings\n")
+            for k, v in sorted(config.items()):
+                if k not in llm_keys and k not in data_keys:
+                    f.write(f"{k}={v}\n")
+        return True
+    except IOError:
+        return False
+
+
+def get_api_key(provider: str) -> Optional[str]:
+    """Get API key for a provider."""
+    settings = get_settings()
+    try:
+        return settings.get_api_key(LLMProvider(provider.lower()))
+    except ValueError:
+        return None
+
+
+def save_setting(key: str, value: str) -> None:
+    """Save a setting to the config file."""
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Read existing config
+    config = {}
+    if CONFIG_FILE.exists():
+        with open(CONFIG_FILE) as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    config[k] = v
+
+    # Map setting name to config key
+    setting_map = {
+        "default_provider": "DEFAULT_PROVIDER",
+        "default_model": "DEFAULT_MODEL",
+        "output_dir": "OUTPUT_DIR",
+        "cache_enabled": "CACHE_ENABLED",
+        "lean_cli_path": "LEAN_CLI_PATH",
+        "lean_directory": "LEAN_DIRECTORY",
+        "lean_enabled": "LEAN_ENABLED",
+        "ollama_host": "OLLAMA_HOST",
+        "ollama_model": "OLLAMA_MODEL",
+    }
+
+    config_key = setting_map.get(key, key.upper())
+    config[config_key] = str(value)
+
+    # Write back
+    with open(CONFIG_FILE, "w") as f:
+        f.write("# Ephemeral Configuration\n\n")
+        for k, v in sorted(config.items()):
+            f.write(f"{k}={v}\n")
