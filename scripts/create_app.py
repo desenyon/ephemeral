@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create a native macOS application bundle for Sigma."""
+"""Create a native macOS application bundle for Ephemeral."""
 
 import os
 import plistlib
@@ -9,9 +9,9 @@ import sys
 from pathlib import Path
 
 
-APP_NAME = "Sigma"
-VERSION = "3.7.2"
-BUNDLE_ID = "com.sigma.app"
+APP_NAME = "Ephemeral"
+VERSION = "3.8.0"
+BUNDLE_ID = "com.ephemeral.app"
 
 
 ICON_SET = """
@@ -33,10 +33,10 @@ ICON_SET = """
 """
 
 
-SIGMA_HELP_URL = "https://github.com/desenyon/sigma#readme"
+EPHEMERAL_HELP_URL = "https://github.com/desenyon/ephemeral#readme"
 
 LAUNCHER_SCRIPT = f'''#!/bin/bash
-# Sigma Application Launcher
+# Ephemeral Application Launcher
 
 # Get the directory where the app bundle is located
 DIR="$( cd "$( dirname "${{BASH_SOURCE[0]}}" )/../Resources" && pwd )"
@@ -54,19 +54,19 @@ elif command -v python3.11 &> /dev/null; then
 elif command -v python3 &> /dev/null; then
     PYTHON="python3"
 else
-    osascript -e 'display dialog "Python 3.11+ is required. Install from https://www.python.org/downloads/ or follow {SIGMA_HELP_URL}" buttons {{"OK"}} default button 1 with icon stop with title "Sigma Error"'
+    osascript -e 'display dialog "Python 3.11+ is required. Install from https://www.python.org/downloads/ or follow {EPHEMERAL_HELP_URL}" buttons {{"OK"}} default button 1 with icon stop with title "Ephemeral Error"'
     exit 1
 fi
 
-# Check if sigma is installed
-if ! $PYTHON -c "import sigma" 2>/dev/null; then
-    # Try to install sigma
-    $PYTHON -m pip install sigma-terminal --quiet 2>/dev/null || true
+# Check if ephemeral is installed
+if ! $PYTHON -c "import ephemeral" 2>/dev/null; then
+    # Try to install ephemeral
+    $PYTHON -m pip install ephemeral-terminal --quiet 2>/dev/null || true
 fi
 
-# Run Sigma with Textual in a proper terminal context
+# Run Ephemeral with Ink/Textual in a proper terminal context
 # This uses the Terminal.app to run the TUI properly
-exec $PYTHON -m sigma
+exec $PYTHON -m ephemeral
 '''
 
 
@@ -79,10 +79,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var task: Process?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        runSigma()
+        runEphemeral()
     }
     
-    func runSigma() {
+    func runEphemeral() {
         let bundle = Bundle.main
         let resourcePath = bundle.resourcePath ?? ""
         
@@ -104,22 +104,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         guard let python = pythonPath else {
-            showError("Python 3.11+ is required but not found.\\nInstall from https://www.python.org/downloads/\\nor see https://github.com/desenyon/sigma#readme")
+            showError("Python 3.11+ is required but not found.\\nInstall from https://www.python.org/downloads/\\nor see https://github.com/desenyon/ephemeral#readme")
             NSApp.terminate(nil)
             return
         }
         
-        // Run sigma module
+        // Run ephemeral module
         task = Process()
         task?.executableURL = URL(fileURLWithPath: python)
-        task?.arguments = ["-m", "sigma"]
+        task?.arguments = ["-m", "ephemeral"]
         task?.environment = ProcessInfo.processInfo.environment
         
         do {
             try task?.run()
             task?.waitUntilExit()
         } catch {
-            showError("Failed to launch Sigma: \\(error.localizedDescription)")
+            showError("Failed to launch Ephemeral: \\(error.localizedDescription)")
         }
         
         NSApp.terminate(nil)
@@ -127,7 +127,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     func showError(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "Sigma Error"
+        alert.messageText = "Ephemeral Error"
         alert.informativeText = message
         alert.alertStyle = .critical
         alert.addButton(withTitle: "OK")
@@ -142,7 +142,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 
 def create_app_bundle(output_dir: str = "dist"):
-    """Create a macOS .app bundle for Sigma."""
+    """Create a macOS .app bundle for Ephemeral."""
     
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
@@ -177,7 +177,7 @@ def create_app_bundle(output_dir: str = "dist"):
         "NSSupportsAutomaticTermination": False,
         "NSSupportsSuddenTermination": False,
         "LSApplicationCategoryType": "public.app-category.finance",
-        "NSHumanReadableCopyright": f"Copyright 2024 Sigma Team. All rights reserved.",
+        "NSHumanReadableCopyright": "Copyright 2024-2026 Desenyon. All rights reserved.",
     }
     
     with open(contents / "Info.plist", "wb") as f:
@@ -215,13 +215,13 @@ def create_app_icon(icon_path: Path):
       <stop offset="0%" style="stop-color:#1e3a8a"/>
       <stop offset="100%" style="stop-color:#0f172a"/>
     </linearGradient>
-    <linearGradient id="sigma" x1="0%" y1="0%" x2="100%" y2="0%">
+    <linearGradient id="brand" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" style="stop-color:#60a5fa"/>
       <stop offset="100%" style="stop-color:#3b82f6"/>
     </linearGradient>
   </defs>
   <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
-  <text x="512" y="650" font-family="SF Pro Display, Helvetica, Arial" font-size="580" font-weight="bold" fill="url(#sigma)" text-anchor="middle">σ</text>
+  <text x="512" y="650" font-family="SF Pro Display, Helvetica, Arial" font-size="580" font-weight="bold" fill="url(#brand)" text-anchor="middle">E</text>
 </svg>'''
     
     # Write SVG
@@ -285,15 +285,15 @@ def _create_simple_icon(path: Path, size: int):
             b = int(138 + (42 - 138) * y / size)
             draw.line([(0, y), (size, y)], fill=(r, g, b, 255))
         
-        # Draw sigma symbol
+        # Draw brand mark
         try:
             font_size = int(size * 0.5)
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
         except:
             font = ImageFont.load_default()
         
-        # Center the sigma
-        text = "σ"
+        # Center the glyph
+        text = "E"
         bbox = draw.textbbox((0, 0), text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
@@ -354,7 +354,7 @@ def main():
     """Main entry point."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Create Sigma macOS app bundle")
+    parser = argparse.ArgumentParser(description="Create Ephemeral macOS app bundle")
     parser.add_argument(
         "--output", "-o",
         default="dist",
@@ -363,7 +363,7 @@ def main():
     
     args = parser.parse_args()
     
-    print("Creating Sigma.app bundle...")
+    print("Creating Ephemeral.app bundle...")
     app_path = create_app_bundle(args.output)
     print(f"\nDone! App bundle created at: {app_path}")
 
