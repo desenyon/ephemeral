@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
 """
-Live Integration Test for Sigma v3.7.2
+Live Integration Test for Ephemeral v3.8.0
 WARNING: This script makes REAL API calls and consumes quota.
 """
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
 import pytest
 
-# Ensure we can import sigma
+# Ensure we can import ephemeral
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sigma.config import get_settings
-from sigma.llm.router import LLMRouter
-from sigma.tools.registry import TOOL_REGISTRY
+from ephemeral.config import get_settings
+from ephemeral.llm.router import LLMRouter
+from ephemeral.tools.registry import TOOL_REGISTRY
 
 
 @pytest.mark.integration
 async def test_live_integrations():
     settings = get_settings()
     print(f"Loaded Settings. Default Provider: {settings.default_provider}")
-    
+
     results = {}
-    
+
     # 1. Test Alpha Vantage
     if settings.alpha_vantage_api_key:
         print("\n[TEST] Alpha Vantage (Live)...")
@@ -55,16 +54,16 @@ async def test_live_integrations():
             # Most tools in library.py are sync, but let's check.
             # polygon tools are usually sync in this codebase based on previous reads.
             res = tool.func(symbol="AAPL")
-            
+
             # Check if it's a coroutine
             if asyncio.iscoroutine(res):
                 res = await res
-                
+
             if "error" in res:
                 print(f"  [FAIL] {res['error']}")
                 results["Polygon"] = False
             else:
-                print(f"  [PASS] Data received")
+                print("  [PASS] Data received")
                 results["Polygon"] = True
         except Exception as e:
             print(f"  [ERR] {e}")
@@ -78,10 +77,10 @@ async def test_live_integrations():
         try:
             tool = TOOL_REGISTRY.get_tool("search_exa")
             res = tool.func(query="latest stock market news")
-            
+
             if asyncio.iscoroutine(res):
                 res = await res
-                
+
             if "error" in res:
                 print(f"  [FAIL] {res['error']}")
                 results["Exa"] = False
@@ -99,21 +98,21 @@ async def test_live_integrations():
     print(f"\n[TEST] LLM Generation ({settings.default_provider})...")
     try:
         router = LLMRouter(settings)
-        messages = [{"role": "user", "content": "Say 'Sigma works' and nothing else."}]
-        
+        messages = [{"role": "user", "content": "Say 'Ephemeral works' and nothing else."}]
+
         # Access provider directly for test
         provider_name = settings.default_provider.value if hasattr(settings.default_provider, 'value') else settings.default_provider
         provider_client = router.providers.get(provider_name)
-        
+
         if provider_client:
             # Most providers return an object with 'content' attribute or string
             # Check the signature of generate in router.py: return await client.generate(...)
             # If stream=True by default in chat, we might need to handle async iterator.
             # But let's call generate directly on the provider client if possible.
-            
+
             # Use router.chat instead as it handles logic
             response = await router.chat(messages=messages, stream=False)
-            
+
             # Response might be a string or object depending on implementation
             print(f"  [PASS] Response: {response}")
             results["LLM"] = True
@@ -132,8 +131,9 @@ async def test_live_integrations():
     for k, v in results.items():
         status = "PASS" if v else "FAIL"
         print(f"{k}: {status}")
-        if not v: all_pass = False
-    
+        if not v:
+            all_pass = False
+
     return all_pass
 
 if __name__ == "__main__":
