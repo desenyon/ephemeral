@@ -17,6 +17,7 @@ Released: 2026-04-09
 ### Setup and routing
 
 - Optimized the Ink bridge so lightweight actions do not eagerly import heavy workflow modules.
+- Replaced per-request bridge spawning with a persistent worker and cached status surfaces for dramatically faster warm interactions.
 - Added richer Ollama status details, including installed-model visibility and active-model availability.
 - Updated setup to reuse already-installed Ollama models instead of assuming a fresh pull is required.
 - Persisted `OLLAMA_MODEL` alongside the default provider and model to keep runtime routing aligned.
