@@ -28,6 +28,26 @@ def test_status_payload_reports_local_ready() -> None:
     assert payload["ollama"]["current_model_available"] is True
 
 
+def test_status_request_uses_cache() -> None:
+    ink_bridge._invalidate_cached_payloads()
+    try:
+        with patch("ephemeral.ink_bridge._status_payload", return_value={"provider": "ollama"}) as status_payload:
+            first = asyncio.run(ink_bridge.handle_request({"action": "status"}))
+            second = asyncio.run(ink_bridge.handle_request({"action": "status"}))
+    finally:
+        ink_bridge._invalidate_cached_payloads()
+
+    assert first["data"]["provider"] == "ollama"
+    assert second["data"]["provider"] == "ollama"
+    status_payload.assert_called_once()
+
+
+def test_handle_packet_preserves_request_id() -> None:
+    response = asyncio.run(ink_bridge.handle_packet({"id": "packet-1", "payload": {"action": "help"}}))
+    assert response["id"] == "packet-1"
+    assert response["ok"] is True
+
+
 def test_quote_payload_raises_without_symbols() -> None:
     try:
         ink_bridge._quote_payload({})
