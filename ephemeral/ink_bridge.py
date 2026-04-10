@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import shutil
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -30,6 +32,8 @@ class BridgeError(Exception):
 
 
 Engine = None
+STATUS_CACHE_TTL_SECONDS = 1.5
+_PAYLOAD_CACHE: Dict[str, tuple[float, Dict[str, Any]]] = {}
 
 
 def _engine_cls():
@@ -74,6 +78,21 @@ def _build_markdown_export(payload: Dict[str, Any]) -> str:
             lines.append(body_text)
         lines.append("")
     return "\n".join(lines).strip() + "\n"
+
+
+def _cached_payload(key: str, builder, ttl_seconds: float = STATUS_CACHE_TTL_SECONDS) -> Dict[str, Any]:
+    now = time.monotonic()
+    cached = _PAYLOAD_CACHE.get(key)
+    if cached and now - cached[0] <= ttl_seconds:
+        return copy.deepcopy(cached[1])
+
+    payload = builder()
+    _PAYLOAD_CACHE[key] = (now, payload)
+    return copy.deepcopy(payload)
+
+
+def _invalidate_cached_payloads() -> None:
+    _PAYLOAD_CACHE.clear()
 
 
 def _status_payload() -> Dict[str, Any]:
@@ -403,19 +422,20 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise BridgeError("Bridge payload is missing an action.")
 
     if action == "help":
-        data = _help_payload()
+        data = _cached_payload("help", _help_payload, ttl_seconds=300)
     elif action == "shortcuts":
-        data = _shortcuts_payload()
+        data = _cached_payload("shortcuts", _shortcuts_payload, ttl_seconds=300)
     elif action == "keys":
         data = _keys_payload()
     elif action == "setup-help":
-        data = _setup_help_payload()
+        data = _cached_payload("setup-help", _setup_help_payload, ttl_seconds=300)
     elif action == "reload":
+        _invalidate_cached_payloads()
         data = _reload_payload()
     elif action == "status":
-        data = _status_payload()
+        data = _cached_payload("status", _status_payload)
     elif action == "doctor":
-        data = _doctor_payload()
+        data = _cached_payload("doctor", _doctor_payload)
     elif action == "ask":
         data = await _ask_payload(payload)
     elif action == "quote":
@@ -429,9 +449,9 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     elif action == "backtest":
         data = _backtest_payload(payload)
     elif action == "models":
-        data = _models_payload()
+        data = _cached_payload("models", _models_payload, ttl_seconds=60)
     elif action == "tools":
-        data = _tools_payload()
+        data = _cached_payload("tools", _tools_payload, ttl_seconds=60)
     elif action == "portfolio":
         data = await _engine_payload(action, payload)
     elif action == "strategy":
@@ -444,10 +464,13 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         data = _export_payload(payload)
     elif action == "set-provider":
         data = _set_provider_payload(payload)
+        _invalidate_cached_payloads()
     elif action == "set-model":
         data = _set_model_payload(payload)
+        _invalidate_cached_payloads()
     elif action == "set-key":
         data = _set_key_payload(payload)
+        _invalidate_cached_payloads()
     elif action == "legacy-ui":
         data = _legacy_ui_payload()
     else:
@@ -456,20 +479,61 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": True, "action": action, "data": data}
 
 
+async def handle_packet(packet: Dict[str, Any]) -> Dict[str, Any]:
+    request_id = packet.get("id")
+    payload = packet.get("payload", packet)
+    if not isinstance(payload, dict):
+        raise BridgeError("Bridge packet payload must be a JSON object.")
+
+    response = await handle_request(payload)
+    if request_id is None:
+        return response
+    return {"id": request_id, **response}
+
+
+def _serialize_response(response: Dict[str, Any], *, pretty: bool = False) -> str:
+    return json.dumps(response, indent=2 if pretty else None, default=str)
+
+
+def _write_response(response: Dict[str, Any], *, pretty: bool = False) -> None:
+    sys.stdout.write(_serialize_response(response, pretty=pretty))
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
+
+def serve_forever() -> int:
+    for raw_line in sys.stdin:
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        try:
+            packet = json.loads(line)
+            response = asyncio.run(handle_packet(packet))
+        except BridgeError as exc:
+            response = {"ok": False, "error": str(exc)}
+        except Exception as exc:  # pragma: no cover - defensive bridge boundary
+            response = {"ok": False, "error": str(exc)}
+
+        _write_response(response, pretty=False)
+
+    return 0
+
+
 def main() -> int:
     try:
+        if "--server" in sys.argv:
+            return serve_forever()
+
         payload = json.load(sys.stdin)
         result = asyncio.run(handle_request(payload))
-        json.dump(result, sys.stdout, indent=2, default=str)
-        sys.stdout.write("\n")
+        _write_response(result, pretty=True)
         return 0
     except BridgeError as exc:
-        json.dump({"ok": False, "error": str(exc)}, sys.stdout)
-        sys.stdout.write("\n")
+        _write_response({"ok": False, "error": str(exc)})
         return 1
     except Exception as exc:  # pragma: no cover - defensive bridge boundary
-        json.dump({"ok": False, "error": str(exc)}, sys.stdout)
-        sys.stdout.write("\n")
+        _write_response({"ok": False, "error": str(exc)})
         return 1
 
 
