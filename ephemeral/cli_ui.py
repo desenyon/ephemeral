@@ -219,7 +219,7 @@ def run_doctor(console: Console, settings: "Settings") -> int:
         console.print(
             Panel(
                 f"[ephemeral.err]Missing packages:[/ephemeral.err] {', '.join(critical)}\n"
-                "Install: [bold]pip install ephemeral-terminal[all][/bold]",
+                "Install: [bold]curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash[/bold]",
                 border_style="red",
             )
         )

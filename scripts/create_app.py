@@ -5,9 +5,7 @@ import os
 import plistlib
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-
 
 APP_NAME = "Ephemeral"
 VERSION = "3.8.0"
@@ -60,8 +58,8 @@ fi
 
 # Check if ephemeral is installed
 if ! $PYTHON -c "import ephemeral" 2>/dev/null; then
-    # Try to install ephemeral
-    $PYTHON -m pip install ephemeral-terminal --quiet 2>/dev/null || true
+    osascript -e 'display dialog "Ephemeral is not installed yet. Run:\n\ncurl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash\n\nThen reopen the app." buttons {{"OK"}} default button 1 with icon stop with title "Ephemeral Setup Required"'
+    exit 1
 fi
 
 # Run Ephemeral with Ink/Textual in a proper terminal context
@@ -77,15 +75,15 @@ import Foundation
 @main
 class AppDelegate: NSObject, NSApplicationDelegate {
     var task: Process?
-    
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         runEphemeral()
     }
-    
+
     func runEphemeral() {
         let bundle = Bundle.main
         let resourcePath = bundle.resourcePath ?? ""
-        
+
         // Find Python (python.org Framework, /usr/local, or system)
         let pythonPaths = [
             "/usr/local/bin/python3",
@@ -94,7 +92,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
             "/usr/bin/python3"
         ]
-        
+
         var pythonPath: String?
         for path in pythonPaths {
             if FileManager.default.fileExists(atPath: path) {
@@ -102,29 +100,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 break
             }
         }
-        
+
         guard let python = pythonPath else {
             showError("Python 3.11+ is required but not found.\\nInstall from https://www.python.org/downloads/\\nor see https://github.com/desenyon/ephemeral#readme")
             NSApp.terminate(nil)
             return
         }
-        
+
         // Run ephemeral module
         task = Process()
         task?.executableURL = URL(fileURLWithPath: python)
         task?.arguments = ["-m", "ephemeral"]
         task?.environment = ProcessInfo.processInfo.environment
-        
+
+        if !isEphemeralInstalled(python: python) {
+            showError("Ephemeral is not installed yet.\\nRun:\\n\\ncurl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash\\n\\nThen reopen the app.")
+            NSApp.terminate(nil)
+            return
+        }
+
         do {
             try task?.run()
             task?.waitUntilExit()
         } catch {
             showError("Failed to launch Ephemeral: \\(error.localizedDescription)")
         }
-        
+
         NSApp.terminate(nil)
     }
-    
+
     func showError(_ message: String) {
         let alert = NSAlert()
         alert.messageText = "Ephemeral Error"
@@ -133,7 +137,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "OK")
         alert.runModal()
     }
-    
+
+    func isEphemeralInstalled(python: String) -> Bool {
+        let check = Process()
+        check.executableURL = URL(fileURLWithPath: python)
+        check.arguments = ["-c", "import ephemeral"]
+
+        do {
+            try check.run()
+            check.waitUntilExit()
+            return check.terminationStatus == 0
+        } catch {
+            return false
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         task?.terminate()
     }
@@ -143,24 +161,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 def create_app_bundle(output_dir: str = "dist"):
     """Create a macOS .app bundle for Ephemeral."""
-    
+
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
-    
+
     app_path = output_path / f"{APP_NAME}.app"
-    
+
     # Remove existing app bundle
     if app_path.exists():
         shutil.rmtree(app_path)
-    
+
     # Create directory structure
     contents = app_path / "Contents"
     macos = contents / "MacOS"
     resources = contents / "Resources"
-    
+
     macos.mkdir(parents=True)
     resources.mkdir(parents=True)
-    
+
     # Create Info.plist
     info_plist = {
         "CFBundleName": APP_NAME,
@@ -179,34 +197,34 @@ def create_app_bundle(output_dir: str = "dist"):
         "LSApplicationCategoryType": "public.app-category.finance",
         "NSHumanReadableCopyright": "Copyright 2024-2026 Desenyon. All rights reserved.",
     }
-    
+
     with open(contents / "Info.plist", "wb") as f:
         plistlib.dump(info_plist, f)
-    
+
     # Create launcher script
     launcher_path = macos / APP_NAME
     with open(launcher_path, "w") as f:
         f.write(LAUNCHER_SCRIPT)
-    
+
     os.chmod(launcher_path, 0o755)
-    
+
     # Create app icon (simple placeholder - generates an icns file)
     create_app_icon(resources / "AppIcon.icns")
-    
+
     print(f"Created {app_path}")
     print(f"\nTo install, copy {APP_NAME}.app to /Applications/")
     print(f"  cp -r {app_path} /Applications/")
-    
+
     return str(app_path)
 
 
 def create_app_icon(icon_path: Path):
     """Create a simple app icon."""
-    
+
     # Create iconset directory
     iconset_dir = icon_path.parent / "AppIcon.iconset"
     iconset_dir.mkdir(exist_ok=True)
-    
+
     # Generate SVG content for the icon
     svg_content = '''<?xml version="1.0" encoding="UTF-8"?>
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
@@ -223,33 +241,33 @@ def create_app_icon(icon_path: Path):
   <rect width="1024" height="1024" rx="220" fill="url(#bg)"/>
   <text x="512" y="650" font-family="SF Pro Display, Helvetica, Arial" font-size="580" font-weight="bold" fill="url(#brand)" text-anchor="middle">E</text>
 </svg>'''
-    
+
     # Write SVG
     svg_path = iconset_dir / "icon.svg"
     with open(svg_path, "w") as f:
         f.write(svg_content)
-    
+
     # Try to convert SVG to PNG using various methods
     sizes = [16, 32, 64, 128, 256, 512, 1024]
-    
+
     for size in sizes:
         png_name = f"icon_{size}x{size}.png"
         png_path = iconset_dir / png_name
-        
+
         # Try using qlmanage (built into macOS)
         try:
             # For now, create a simple colored square as placeholder
             _create_simple_icon(png_path, size)
         except Exception as e:
             print(f"Warning: Could not create icon at size {size}: {e}")
-    
+
     # Also create @2x versions
     for size in [16, 32, 128, 256, 512]:
         src = iconset_dir / f"icon_{size*2}x{size*2}.png"
         dst = iconset_dir / f"icon_{size}x{size}@2x.png"
         if src.exists():
             shutil.copy(src, dst)
-    
+
     # Convert iconset to icns
     try:
         subprocess.run(
@@ -260,7 +278,7 @@ def create_app_icon(icon_path: Path):
     except subprocess.CalledProcessError:
         # If iconutil fails, create a simple placeholder
         print("Warning: Could not create .icns file. Using placeholder.")
-    
+
     # Cleanup
     shutil.rmtree(iconset_dir, ignore_errors=True)
 
@@ -269,29 +287,25 @@ def _create_simple_icon(path: Path, size: int):
     """Create a simple icon using Python."""
     try:
         from PIL import Image, ImageDraw, ImageFont
-        
+
         # Create image with gradient background
         img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
-        
-        # Draw rounded rectangle background
-        padding = size // 8
-        corner_radius = size // 5
-        
+
         # Simple gradient simulation
         for y in range(size):
             r = int(30 + (15 - 30) * y / size)
             g = int(58 + (23 - 58) * y / size)
             b = int(138 + (42 - 138) * y / size)
             draw.line([(0, y), (size, y)], fill=(r, g, b, 255))
-        
+
         # Draw brand mark
         try:
             font_size = int(size * 0.5)
             font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
-        except:
+        except OSError:
             font = ImageFont.load_default()
-        
+
         # Center the glyph
         text = "E"
         bbox = draw.textbbox((0, 0), text, font=font)
@@ -299,11 +313,11 @@ def _create_simple_icon(path: Path, size: int):
         text_height = bbox[3] - bbox[1]
         x = (size - text_width) // 2
         y = (size - text_height) // 2 - size // 10
-        
+
         draw.text((x, y), text, fill=(96, 165, 250, 255), font=font)
-        
+
         img.save(path, "PNG")
-        
+
     except ImportError:
         # PIL not available, create minimal PNG manually
         _create_minimal_png(path, size)
@@ -313,22 +327,22 @@ def _create_minimal_png(path: Path, size: int):
     """Create a minimal valid PNG file."""
     import struct
     import zlib
-    
+
     # Create a simple blue square
     width = height = size
-    
+
     def png_chunk(chunk_type, data):
         chunk_len = struct.pack(">I", len(data))
         chunk_crc = struct.pack(">I", zlib.crc32(chunk_type + data) & 0xffffffff)
         return chunk_len + chunk_type + data + chunk_crc
-    
+
     # PNG signature
     signature = b'\x89PNG\r\n\x1a\n'
-    
+
     # IHDR chunk
     ihdr_data = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
     ihdr = png_chunk(b'IHDR', ihdr_data)
-    
+
     # IDAT chunk (image data)
     raw_data = b''
     for y in range(height):
@@ -339,13 +353,13 @@ def _create_minimal_png(path: Path, size: int):
             g = 58
             b = 138
             raw_data += bytes([r, g, b])
-    
+
     compressed = zlib.compress(raw_data, 9)
     idat = png_chunk(b'IDAT', compressed)
-    
+
     # IEND chunk
     iend = png_chunk(b'IEND', b'')
-    
+
     with open(path, 'wb') as f:
         f.write(signature + ihdr + idat + iend)
 
@@ -353,16 +367,16 @@ def _create_minimal_png(path: Path, size: int):
 def main():
     """Main entry point."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Create Ephemeral macOS app bundle")
     parser.add_argument(
         "--output", "-o",
         default="dist",
         help="Output directory for the app bundle"
     )
-    
+
     args = parser.parse_args()
-    
+
     print("Creating Ephemeral.app bundle...")
     app_path = create_app_bundle(args.output)
     print(f"\nDone! App bundle created at: {app_path}")

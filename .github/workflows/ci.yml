@@ -1,5 +1,5 @@
 # Runs on every push to main and on pull requests.
-# (Release / PyPI is separate: see release.yml — tag push v* only.)
+# (GitHub release packaging is separate: see release.yml — tag push v* only.)
 name: CI
 
 on:

@@ -1,4 +1,4 @@
-name: Release to PyPI and GitHub
+name: Release to GitHub
 
 on:
   push:
@@ -72,30 +72,9 @@ jobs:
           name: ephemeral-${{ runner.os }}
           path: dist/ephemeral-*
 
-  publish-pypi:
-    name: Publish to PyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/ephemeral-terminal
-
-    permissions:
-      id-token: write
-
-    steps:
-      - name: Download distribution artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: python-package-distributions
-          path: dist/
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-
   github-release:
     name: Create GitHub Release
-    needs: [build, publish-pypi, build-binaries]
+    needs: [build, build-binaries]
     runs-on: ubuntu-latest
 
     permissions:
@@ -129,7 +108,7 @@ jobs:
           echo "### Installation" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo '```bash' >> RELEASE_NOTES.md
-          echo "pip install ephemeral-terminal==${{ steps.get_version.outputs.VERSION }}" >> RELEASE_NOTES.md
+          echo "curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v${{ steps.get_version.outputs.VERSION }} bash" >> RELEASE_NOTES.md
           echo '```' >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
           echo "### Downloads" >> RELEASE_NOTES.md

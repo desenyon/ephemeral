@@ -12,6 +12,8 @@ Ephemeral is a keyboard-first research environment for market analysis, thesis d
 
 </div>
 
+![Ephemeral terminal workspace](./ephemeral-demo.png)
+
 ---
 
 ## What changed in 3.8
@@ -24,6 +26,7 @@ Ephemeral is a keyboard-first research environment for market analysis, thesis d
 - Repeated Ink actions are much faster because the shell now keeps a persistent Python bridge worker alive instead of cold-starting one per request.
 - The layout falls back earlier on smaller terminals so content stays inside the frame instead of clipping or colliding.
 - Ollama onboarding is more accurate: setup can now adopt already-installed local models instead of assuming every machine needs a fresh pull.
+- GitHub release installs now use a repo-hosted one-line bootstrap script instead of a PyPI publish path.
 - Versioning is centralized and release changes are now logged in [`CHANGELOG.md`](/Users/naitikgupta/Projects/ephemeral/CHANGELOG.md).
 
 ---
@@ -42,7 +45,41 @@ Configuration, exports, charts, and session artifacts live under `~/.ephemeral/`
 
 ---
 
-## Quick start
+## Install in one line
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash
+```
+
+The installer:
+
+- downloads the selected GitHub ref,
+- creates `~/.ephemeral/.venv`,
+- installs the Python package from source,
+- installs Ink UI dependencies under `ephemeral/ink_ui`,
+- links `ephemeral` into `~/.local/bin`.
+
+To pin a release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v3.8.0 bash
+```
+
+Requirements:
+
+- Python `3.11+`
+- Node.js and `npm`
+- `curl` and `tar`
+
+After install:
+
+```bash
+ephemeral
+```
+
+If `~/.local/bin` is not on your `PATH`, run `~/.local/bin/ephemeral` or add that directory to your shell profile.
+
+## Develop from source
 
 ```bash
 git clone https://github.com/desenyon/ephemeral.git

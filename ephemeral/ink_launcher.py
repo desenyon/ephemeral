@@ -29,7 +29,10 @@ def ink_dependencies_ready() -> bool:
 
 def install_hint() -> str:
     ui_root = ink_ui_root()
-    return f"npm install --prefix {ui_root}"
+    return (
+        "curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash"
+        f" (or `npm install --prefix {ui_root}` when running from a source checkout)"
+    )
 
 
 def launch_ink_ui(extra_args: Iterable[str] | None = None) -> int:
@@ -57,4 +60,3 @@ def launch_ink_ui(extra_args: Iterable[str] | None = None) -> int:
     env.setdefault("FORCE_COLOR", "1")
 
     return subprocess.call(cmd, env=env)
-

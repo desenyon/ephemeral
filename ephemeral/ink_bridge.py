@@ -195,7 +195,8 @@ def _setup_help_payload() -> Dict[str, Any]:
     return {
         "title": "Setup",
         "steps": [
-            "Run `npm install --prefix ephemeral/ink_ui` after cloning so the Ink shell can launch.",
+            "Install Ephemeral with `curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | bash`.",
+            "If you are working from a source checkout, run `npm install --prefix ephemeral/ink_ui` so the Ink shell can launch.",
             "Run `ephemeral --setkey openai <key>` or save keys in `~/.ephemeral/config.env`.",
             "Set a provider with `ephemeral --provider <provider>`.",
             "Set a model with `ephemeral --model <model-id>`.",

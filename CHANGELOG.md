@@ -26,5 +26,6 @@ Released: 2026-04-09
 
 - Centralized version metadata in `ephemeral/version.py`.
 - Bumped package, script, and verification references to `3.8.0`.
+- Replaced the PyPI release publish path with a GitHub-hosted one-line installer script.
 - Rewrote the README around the new `3.8.0` product story and command surface.
 - Added setup regression tests in `tests/test_setup_agent.py`.
