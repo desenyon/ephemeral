@@ -1457,7 +1457,7 @@ const App = () => {
 					{
 						text:
 							viewport.total > viewport.lines.length
-								? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
+								? `[ ] to scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
 								: `${detailMode} view · ${busy ? 'request running' : 'ready for next command'}`,
 						color: 'gray',
 					},
@@ -1561,7 +1561,7 @@ const App = () => {
 					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
 						{selectedAction.label}
 					</Text>
-					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter run`}</Text>
+					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter to run`}</Text>
 				</Box>
 				<Text>
 					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
@@ -1570,7 +1570,7 @@ const App = () => {
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
 				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output · Esc clears input</Text>
 			</Box>
 		</Box>
 	);
