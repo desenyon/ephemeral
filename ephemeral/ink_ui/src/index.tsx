@@ -88,6 +88,11 @@ type LineSegment = {
 	bold?: boolean;
 };
 
+type ShortcutHint = {
+	key: string;
+	description: string;
+};
+
 const APP_VERSION = '3.8.0';
 
 const actions: ActionDefinition[] = [
@@ -1393,15 +1398,42 @@ const App = () => {
 		? selectedAction.hint
 		: selectedAction.promptPlaceholder ?? 'Use natural language or slash commands like /quote AAPL';
 	const shellStatus = busy ? `running ${pendingLabel ?? 'request'}` : statusLoading ? 'syncing state' : `${metrics.provider} · ${metrics.model}`;
-	const sidebarFocused = focusPane === 'actions' || focusPane === 'history';
 	const dividerWidth = Math.min(terminalWidth - 8, 72);
 	const headerTone = busy ? 'yellow' : statusLoading ? 'blue' : 'green';
 	const actionAccent = pickGroupColor(selectedAction.group);
 	const topStatusLine = `${selectedAction.group} · ${selectedAction.label} · ${metrics.localReady ? 'local ready' : 'setup path'}`;
+	const composerShortcuts = useMemo<ShortcutHint[]>(() => {
+		const hints: ShortcutHint[] = [{key: 'Tab', description: 'switch pane'}];
+
+		if (focusPane === 'input') {
+			if (input.trim()) {
+				hints.push({key: 'Esc', description: 'clear input'});
+			} else {
+				hints.push({key: 'Up/Down', description: 'choose action'});
+			}
+		}
+
+		if (focusPane === 'actions') {
+			hints.push({key: 'Up/Down', description: 'navigate'});
+		}
+
+		if (focusPane === 'history') {
+			hints.push({key: 'Up/Down', description: 'navigate'});
+			hints.push({key: 'Ctrl+L', description: 'clear history'});
+		}
+
+		if (focusPane === 'output') {
+			hints.push({key: 'Up/Down', description: 'scroll'});
+			hints.push({key: '[ ]', description: 'page'});
+		}
+
+		hints.push({key: 'd', description: 'toggle raw output'});
+		return hints;
+	}, [focusPane, input]);
 
 	const sidebarRows = useMemo(() => {
 		const rows: LineRow[] = [
-			{text: 'NAVIGATOR', color: sidebarFocused ? actionAccent : 'gray', bold: true},
+			{text: 'NAVIGATOR', color: focusPane === 'actions' ? actionAccent : 'gray', bold: true},
 			{text: `${metrics.provider} · ${truncate(String(metrics.model), 20)}`, color: 'gray'},
 			{text: ''},
 		];
@@ -1416,7 +1448,7 @@ const App = () => {
 				const selected = action.id === selectedAction.id;
 				rows.push({
 					text: `${selected ? '>' : ' '} ${action.label}`,
-					color: selected ? pickGroupColor(group) : 'white',
+					color: selected ? (focusPane === 'actions' ? pickGroupColor(group) : 'white') : 'gray',
 					bold: selected,
 				});
 			}
@@ -1428,7 +1460,7 @@ const App = () => {
 			for (const row of activityRows) {
 				rows.push({
 					text: `${row.selected ? '>' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
-					color: row.selected ? 'cyanBright' : row.error ? 'red' : 'gray',
+					color: row.selected ? (focusPane === 'history' ? 'cyanBright' : 'white') : row.error ? 'red' : 'gray',
 					bold: row.selected,
 				});
 			}
@@ -1443,7 +1475,7 @@ const App = () => {
 		}
 		rows.push({text: `Focus ${focusPane} · ${selectedEntry ? detailMode : 'workspace'}`, color: 'gray'});
 		return padRows(rows, bodyHeight);
-	}, [actionAccent, activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarFocused, sidebarWidth]);
+	}, [actionAccent, activityRows, bodyHeight, focusPane, metrics.host, metrics.localReady, metrics.model, metrics.provider, metrics.state, selectedAction.group, selectedAction.id, selectedEntry, detailMode, sidebarWidth]);
 
 	const workspaceRows = useMemo(
 		() =>
@@ -1457,7 +1489,7 @@ const App = () => {
 					{
 						text:
 							viewport.total > viewport.lines.length
-								? `scroll ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
+								? `[ ] page ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
 								: `${detailMode} view · ${busy ? 'request running' : 'ready for next command'}`,
 						color: 'gray',
 					},
@@ -1561,7 +1593,9 @@ const App = () => {
 					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
 						{selectedAction.label}
 					</Text>
-					<Text color={busy ? 'yellow' : 'gray'}>{`${promptStatus} · Enter run`}</Text>
+					<Text color={busy ? 'yellow' : 'gray'}>
+						{promptStatus} · <Text color="white" bold>Enter</Text> to run
+					</Text>
 				</Box>
 				<Text>
 					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
@@ -1570,7 +1604,17 @@ const App = () => {
 					{!input ? <Text color="gray">{promptHint}</Text> : null}
 				</Text>
 				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">Tab switch pane · Up/Down choose action when the composer is empty · d toggles raw output</Text>
+				<Text color="gray">
+					{composerShortcuts.map((shortcut, index) => (
+						<React.Fragment key={`${shortcut.key}-${shortcut.description}`}>
+							{index > 0 ? ' · ' : null}
+							<Text color="white" bold>
+								{shortcut.key}
+							</Text>{' '}
+							{shortcut.description}
+						</React.Fragment>
+					))}
+				</Text>
 			</Box>
 		</Box>
 	);
