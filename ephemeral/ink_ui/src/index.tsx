@@ -80,6 +80,7 @@ type LineRow = {
 	text: string;
 	color?: string;
 	bold?: boolean;
+	node?: React.ReactNode;
 };
 
 type LineSegment = {
@@ -1487,11 +1488,15 @@ const App = () => {
 					...viewport.lines.map(line => ({text: line || ' '})),
 					{text: ''},
 					{
-						text:
-							viewport.total > viewport.lines.length
-								? `[ ] page ${viewport.offset + 1}-${Math.min(viewport.offset + viewport.lines.length, viewport.total)} of ${viewport.total} · ${detailMode}`
-								: `${detailMode} view · ${busy ? 'request running' : 'ready for next command'}`,
-						color: 'gray',
+						text: '',
+						node: viewport.total > viewport.lines.length ? (
+							<Text wrap="truncate-end">
+								<Text color="white" bold>[ ]</Text>
+								<Text color="gray"> page {viewport.offset + 1}-{Math.min(viewport.offset + viewport.lines.length, viewport.total)} of {viewport.total} · {detailMode}</Text>
+							</Text>
+						) : (
+							<Text color="gray" wrap="truncate-end">{detailMode} view · {busy ? 'request running' : 'ready for next command'}</Text>
+						),
 					},
 				],
 				bodyHeight,
@@ -1553,7 +1558,9 @@ const App = () => {
 					<Box width={mainWidth} flexDirection="column">
 						{workspaceRows.map((row, index) => (
 							<Box key={`workspace-${index}`} height={1}>
-								{row.color || row.bold ? (
+								{row.node ? (
+									row.node
+								) : row.color || row.bold ? (
 									<Text color={row.color} bold={row.bold} wrap="truncate-end">
 										{row.text || ' '}
 									</Text>
@@ -1568,7 +1575,9 @@ const App = () => {
 				<Box flexDirection="column">
 					{workspaceRows.map((row, index) => (
 						<Box key={`workspace-stacked-${index}`} height={1}>
-							{row.color || row.bold ? (
+							{row.node ? (
+								row.node
+							) : row.color || row.bold ? (
 								<Text color={row.color} bold={row.bold} wrap="truncate-end">
 									{row.text || ' '}
 								</Text>
@@ -1594,7 +1603,14 @@ const App = () => {
 						{selectedAction.label}
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>
-						{promptStatus} · <Text color="white" bold>Enter</Text> to run
+						{promptStatus}
+						{!busy && (
+							<>
+								{' · '}
+								<Text color="white" bold>Enter</Text>
+								{' to run'}
+							</>
+						)}
 					</Text>
 				</Box>
 				<Text>
