@@ -1599,12 +1599,12 @@ const App = () => {
 
 			<Box flexDirection="column">
 				<Box justifyContent="space-between">
-					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
+					<Text color={focusPane === 'input' ? actionAccent : 'gray'} bold>
 						{selectedAction.label}
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>
 						{promptStatus}
-						{!busy && (
+						{!busy && focusPane === 'input' && (
 							<>
 								{' · '}
 								<Text color="white" bold>Enter</Text>
