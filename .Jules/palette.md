@@ -8,3 +8,6 @@
 ## 2024-04-26 - [Interactive Pane State Hierarchy and Input Swallowing]
 **Learning:** Terminal interfaces with multiple interactive panes (like actions, history, output, and input) must explicitly scope single-character keyboard shortcuts to their intended active pane to prevent swallowing input intended for text inputs. Furthermore, users often lose context of which pane is active without clear visual hierarchy.
 **Action:** Always scope single-character shortcuts (e.g. `[`, `]`, `d`) to specific focus states (e.g., `focusPane === "output"`, `focusPane !== "input"`). Dim the text color of header titles for inactive panes (e.g., to `gray`) to create a clear visual hierarchy and direct attention to the active workspace.
+## 2024-05-16 - Contextual Keyboard Shortcut Visibility
+**Learning:** In terminal UIs with multiple panes, showing global shortcut hints (like 'd' to toggle raw output or 'Enter to run') when they are not applicable to the currently focused pane (e.g., while typing in an input field) causes user confusion and visual clutter.
+**Action:** Conditionally render keyboard shortcut hints so they are strictly contextual. For example, only show "Enter to run" when the input pane is focused and the action is available, and hide shortcuts like 'd' that conflict with text input when the input pane is active.
