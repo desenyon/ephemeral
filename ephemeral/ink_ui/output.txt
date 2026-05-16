@@ -1,0 +1,45 @@
+
+> ephemeral-ink-ui@ smoke /app/ephemeral/ink_ui
+> tsx src/index.tsx --smoke-test
+
+ Ephemeral 3.8.0                                                · syncing state
+ Market intelligence, research workflows, and execution       Research · Ask ·
+ surfaces in one terminal shell.                              setup path
+ ------------------------------------------------------------------------
+ NAVIGATOR          │Ask
+ n/a · n/a          │LLM research with tool use
+                    │
+ RESEARCH           │Ephemeral turns one command into market context, tools, a…
+ > Ask              │Use the left rail to move between workflows, keep the wor…
+   Quote            │result, and let the composer drive the session.
+   News             │
+   Compare          │Best starting points
+   Chart            │> Ask for a catalyst read, thesis update, or risk check
+   Backtest         │> Compare a basket, open live news, or chart a setup
+                    │> Draft a portfolio, memo, strategy, or alert without lea…
+ BUILD              │
+   Portfolio        │Fast paths
+   Strategy         │> /status for routing health and local model readiness
+   Report           │> Why is NVDA moving and what changes the thesis?
+   Alert            │
+                    │
+ OPS                │
+   Status           │
+   Doctor           │
+   Models           │
+   Tools            │
+   Keys             │
+   Shortcuts        │
+   Setup            │
+   Provider         │
+   Model            │
+   API Key          │
+   Reload           │
+   Export           │
+   Legacy UI        │rendered view · ready for next command
+ ------------------------------------------------------------------------
+ Ask                                                       ready · Enter to run
+ > ▏Why is NVDA moving and what changes the thesis?
+ LLM research with tool use · Ask for catalysts, thesis work, risk analysis, or
+  quick synthesis.
+ Tab switch pane · Up/Down choose action

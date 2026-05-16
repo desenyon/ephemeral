@@ -1428,7 +1428,9 @@ const App = () => {
 			hints.push({key: '[ ]', description: 'page'});
 		}
 
-		hints.push({key: 'd', description: 'toggle raw output'});
+		if (focusPane !== 'input') {
+			hints.push({key: 'd', description: 'toggle raw output'});
+		}
 		return hints;
 	}, [focusPane, input]);
 
@@ -1604,7 +1606,7 @@ const App = () => {
 					</Text>
 					<Text color={busy ? 'yellow' : 'gray'}>
 						{promptStatus}
-						{!busy && (
+						{!busy && focusPane === 'input' && (
 							<>
 								{' · '}
 								<Text color="white" bold>Enter</Text>
