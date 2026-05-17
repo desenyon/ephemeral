@@ -8,3 +8,6 @@
 ## 2024-04-26 - [Interactive Pane State Hierarchy and Input Swallowing]
 **Learning:** Terminal interfaces with multiple interactive panes (like actions, history, output, and input) must explicitly scope single-character keyboard shortcuts to their intended active pane to prevent swallowing input intended for text inputs. Furthermore, users often lose context of which pane is active without clear visual hierarchy.
 **Action:** Always scope single-character shortcuts (e.g. `[`, `]`, `d`) to specific focus states (e.g., `focusPane === "output"`, `focusPane !== "input"`). Dim the text color of header titles for inactive panes (e.g., to `gray`) to create a clear visual hierarchy and direct attention to the active workspace.
+## 2026-05-17 - Conditional Action Hints
+**Learning:** Displaying action hints like 'Enter to run' when the relevant pane is not focused or the application is busy causes visual noise and user confusion.
+**Action:** Conditionally render action hints based on both the application state (e.g., `!busy`) and pane focus state (e.g., `focusPane === 'input'`).
