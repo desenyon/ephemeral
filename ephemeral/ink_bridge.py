@@ -24,6 +24,7 @@ from ephemeral.config import (
     save_setting,
 )
 from ephemeral.ink_launcher import ink_dependencies_ready, ink_ui_root, install_hint
+from ephemeral.research.workspace import build_workspace_snapshot
 from ephemeral.services.health import collect_service_health
 
 
@@ -218,6 +219,10 @@ def _reload_payload() -> Dict[str, Any]:
         "title": "Router reloaded",
         "status": status,
     }
+
+
+def _workspace_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return build_workspace_snapshot(payload, build_status=_status_payload)
 
 
 async def _ask_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -435,6 +440,8 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
     elif action == "reload":
         _invalidate_cached_payloads()
         data = _reload_payload()
+    elif action == "workspace":
+        data = _workspace_payload(payload)
     elif action == "status":
         data = _cached_payload("status", _status_payload)
     elif action == "doctor":

@@ -91,6 +91,19 @@ def test_workspace_payload_defaults_to_spy() -> None:
     assert payload["quote"]["price"] == 500.0
 
 
+def test_handle_request_routes_workspace_payload() -> None:
+    with patch(
+        "ephemeral.ink_bridge.build_workspace_snapshot",
+        return_value={"active_symbol": "AAPL", "watchlist": [], "panel_warnings": []},
+    ) as builder:
+        result = asyncio.run(ink_bridge.handle_request({"action": "workspace", "symbol": "AAPL"}))
+
+    assert result["ok"] is True
+    assert result["action"] == "workspace"
+    assert result["data"]["active_symbol"] == "AAPL"
+    builder.assert_called_once()
+
+
 def test_handle_packet_preserves_request_id() -> None:
     response = asyncio.run(ink_bridge.handle_packet({"id": "packet-1", "payload": {"action": "help"}}))
     assert response["id"] == "packet-1"
