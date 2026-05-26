@@ -42,6 +42,55 @@ def test_status_request_uses_cache() -> None:
     status_payload.assert_called_once()
 
 
+def test_workspace_payload_returns_partial_snapshot_without_network() -> None:
+    with (
+        patch(
+            "ephemeral.research.workspace.build_status",
+            return_value={
+                "provider": "ollama",
+                "model": "qwen2.5:1.5b",
+                "setup_issues": [],
+            },
+        ),
+        patch("ephemeral.research.workspace.MarketDataService") as service_cls,
+    ):
+        service = service_cls.return_value
+        service.get_quote.side_effect = RuntimeError("network unavailable")
+        service.get_news_yf.side_effect = RuntimeError("network unavailable")
+
+        from ephemeral.research.workspace import build_workspace_snapshot
+
+        payload = build_workspace_snapshot({"symbol": "AAPL", "watchlist": ["SPY", "QQQ"]})
+
+    assert payload["active_symbol"] == "AAPL"
+    assert payload["status"]["provider"] == "ollama"
+    assert payload["quote"]["symbol"] == "AAPL"
+    assert payload["quote"]["state"] == "error"
+    assert payload["watchlist"][0]["symbol"] == "SPY"
+    assert payload["panel_warnings"]
+
+
+def test_workspace_payload_defaults_to_spy() -> None:
+    with (
+        patch("ephemeral.research.workspace.build_status", return_value={"setup_issues": []}),
+        patch("ephemeral.research.workspace.MarketDataService") as service_cls,
+    ):
+        service = service_cls.return_value
+        service.get_quote.return_value = {
+            "symbol": "SPY",
+            "price": 500.0,
+            "change_percent": 0.2,
+        }
+        service.get_news_yf.return_value = []
+
+        from ephemeral.research.workspace import build_workspace_snapshot
+
+        payload = build_workspace_snapshot({})
+
+    assert payload["active_symbol"] == "SPY"
+    assert payload["quote"]["price"] == 500.0
+
+
 def test_handle_packet_preserves_request_id() -> None:
     response = asyncio.run(ink_bridge.handle_packet({"id": "packet-1", "payload": {"action": "help"}}))
     assert response["id"] == "packet-1"
