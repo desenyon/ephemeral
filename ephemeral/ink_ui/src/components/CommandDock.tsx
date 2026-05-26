@@ -27,7 +27,7 @@ export const CommandDock = ({
 }: Props) => (
 	<Box flexDirection="column" borderStyle="single" borderColor={focusPane === 'input' ? actionAccent : 'gray'} paddingX={1}>
 		<Box justifyContent="space-between">
-			<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
+			<Text color={focusPane === 'input' ? actionAccent : 'gray'} bold>
 				{selectedAction.label}
 			</Text>
 			<Text color={busy ? 'yellow' : 'green'}>

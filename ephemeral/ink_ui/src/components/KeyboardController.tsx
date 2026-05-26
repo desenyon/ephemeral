@@ -133,17 +133,17 @@ export const KeyboardController = ({
 			}
 		}
 
-		if (value === '[') {
+		if (value === '[' && focusPane === 'workspace') {
 			setOutputScroll(previous => Math.max(0, previous - Math.max(1, outputViewportHeight - 2)));
 			return;
 		}
 
-		if (value === ']') {
+		if (value === ']' && focusPane === 'workspace') {
 			setOutputScroll(previous => previous + Math.max(1, outputViewportHeight - 2));
 			return;
 		}
 
-		if (value.toLowerCase() === 'd' && !input.trim()) {
+		if (value.toLowerCase() === 'd' && focusPane !== 'input') {
 			setDetailMode(previous => (previous === 'rendered' ? 'raw' : 'rendered'));
 			return;
 		}

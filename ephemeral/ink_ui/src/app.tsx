@@ -363,7 +363,7 @@ export const App = () => {
 		() =>
 			padRows(
 				[
-					{text: workspaceStatus, color: focusPane === 'workspace' ? 'cyanBright' : 'white', bold: true},
+					{text: workspaceStatus, color: focusPane === 'workspace' ? 'cyanBright' : 'gray', bold: true},
 					{text: workspaceSubtitle, color: 'gray'},
 					{text: ''},
 					...viewport.lines.map(line => ({text: line || ' '})),
