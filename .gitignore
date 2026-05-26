@@ -114,6 +114,7 @@ venv.bak/
 
 # Ephemeral specific
 .superpowers/
+.worktrees/
 *.dmg
 *.app
 Ephemeral.app/
