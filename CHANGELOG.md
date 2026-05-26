@@ -2,7 +2,9 @@
 
 All notable changes to Ephemeral are recorded here.
 
-## Unreleased
+## 3.9.0
+
+Released: 2026-05-26
 
 ### UI
 

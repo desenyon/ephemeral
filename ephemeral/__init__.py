@@ -1,5 +1,5 @@
 """
-Ephemeral v3.8.0 - Finance Research Agent.
+Ephemeral v3.9.0 - Finance Research Agent.
 
 This package exposes a convenience public API without eagerly importing the
 entire application stack on ``import ephemeral``.

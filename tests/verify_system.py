@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-System Verification Suite for Ephemeral v3.8.0
+System Verification Suite for Ephemeral v3.9.0
 Tests all core components, tools, and configurations.
 """
 

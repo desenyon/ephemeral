@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
-RELEASE_VERSION="3.8.0"
+RELEASE_VERSION="3.9.0"
 
 echo "========================================"
 echo "  Ephemeral v${RELEASE_VERSION} Build Script"

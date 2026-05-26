@@ -22,7 +22,7 @@ def test_version_no_ui_prints_plain_version(tmp_path, capsys) -> None:
     exit_code = run_cli(["--version", "--no-ui"], tmp_path)
 
     assert exit_code == 0
-    assert capsys.readouterr().out.strip() == "ephemeral 3.8.0"
+    assert capsys.readouterr().out.strip() == "ephemeral 3.9.0"
 
 
 def test_list_models_smoke(tmp_path, capsys) -> None:

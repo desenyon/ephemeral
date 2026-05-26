@@ -1,4 +1,4 @@
-"""Configuration management for Ephemeral v3.8.0."""
+"""Configuration management for Ephemeral v3.9.0."""
 
 import json
 import shutil

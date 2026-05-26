@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Live Integration Test for Ephemeral v3.8.0
+Live Integration Test for Ephemeral v3.9.0
 WARNING: This script makes REAL API calls and consumes quota.
 """
 

@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 APP_NAME = "Ephemeral"
-VERSION = "3.8.0"
+VERSION = "3.9.0"
 BUNDLE_ID = "com.ephemeral.app"
 
 

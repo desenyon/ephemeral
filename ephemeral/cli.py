@@ -1,4 +1,4 @@
-"""CLI entry point for Ephemeral v3.8.0 — Rich UX layer over the TUI and one-shot commands."""
+"""CLI entry point for Ephemeral v3.9.0 — Rich UX layer over the TUI and one-shot commands."""
 
 from __future__ import annotations
 
