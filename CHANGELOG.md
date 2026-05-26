@@ -2,6 +2,18 @@
 
 All notable changes to Ephemeral are recorded here.
 
+## Unreleased
+
+### UI
+
+- Upgraded the default Ink shell into a terminal-native Research Desk with market chrome, watchlist rail, workspace pane, context rail, and command dock.
+- Added workspace hydration so active symbols, watchlist quotes, setup issues, news, artifacts, and panel warnings can render from one bridge snapshot.
+- Split the Ink frontend into focused modules for actions, bridge access, formatting, hooks, keyboard handling, and Research Desk components.
+
+### Bridge
+
+- Added a `workspace` bridge action for partial, failure-tolerant Research Desk snapshots.
+
 ## 3.8.0
 
 Released: 2026-04-09

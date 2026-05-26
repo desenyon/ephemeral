@@ -104,30 +104,25 @@ uv run ephemeral
 
 ---
 
-## The 3.8 Ink shell
+## Research Desk shell
 
-The default interface is now intentionally closer to Claude Code in structure, but customized for Ephemeral research workflows: one navigator, one dominant workspace, and one durable composer.
+The default interface is a terminal-native research desk: top market chrome, left watchlist and workflow rail, center workspace, right context rail, and a bottom command dock.
 
-### Core interaction model
-
-- One dominant **workspace** pane for the selected result.
-- One compact **navigator** for actions, session state, and recent runs.
-- One always-available **composer** at the bottom.
+- Use `/quote AAPL`, `/news AAPL`, `/compare AAPL MSFT`, and `/backtest AAPL` to drive market workflows directly.
+- The active symbol updates surrounding panels as commands complete.
+- Setup and provider problems appear as context cards instead of hidden failures.
+- Compact terminals fall back to a stacked layout.
 
 ### Keyboard model
 
-- `Tab`: cycle focus across modes, activity, workspace, and prompt.
-- `↑` / `↓` or `j` / `k`: move within the focused rail or scroll the workspace.
+- `Tab`: cycle focus across the left rail, workspace, right rail, and command dock.
+- `←` / `→`: move between major panes when the command dock is empty.
+- `↑` / `↓` or `j` / `k`: move within the focused pane or scroll the workspace.
+- `/`: start a slash command from any pane.
 - `[` / `]`: page the workspace output.
 - `d`: toggle rendered vs raw payloads.
 - `Esc`: clear the current prompt and return focus to the dock.
 - `Ctrl+C`: quit.
-
-### Prompt behavior
-
-- Typing from any pane returns focus to the prompt immediately.
-- The prompt shows a live caret without appending the cursor to placeholder text.
-- While a request runs, the shell remains navigable and shows the active job in the chrome.
 
 ---
 
