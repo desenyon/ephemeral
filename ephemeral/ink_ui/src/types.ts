@@ -92,3 +92,11 @@ export type WorkspaceSnapshot = {
 	setup_issues: any[];
 	panel_warnings: string[];
 };
+
+export type DeskState = {
+	activeSymbol: string;
+	watchlist: string[];
+	workspace: WorkspaceSnapshot | null;
+	workspaceLoading: boolean;
+	workspaceError: string | null;
+};

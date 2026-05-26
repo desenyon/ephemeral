@@ -19,7 +19,7 @@ import {
 	truncate,
 	viewportLines,
 } from './formatters.js';
-import type {ActivityRow, BridgeRequest, DetailMode, FocusPane, HistoryEntry, LayoutMode, LineRow, ShortcutHint} from './types.js';
+import type {ActivityRow, BridgeRequest, DeskState, DetailMode, FocusPane, HistoryEntry, LayoutMode, LineRow, ShortcutHint} from './types.js';
 
 const buildExportHistory = (history: HistoryEntry[]) =>
 	history
@@ -51,6 +51,13 @@ export const App = () => {
 	const [outputScroll, setOutputScroll] = useState(0);
 	const [pendingLabel, setPendingLabel] = useState<string | null>(null);
 	const [statusLoading, setStatusLoading] = useState(true);
+	const [desk, setDesk] = useState<DeskState>({
+		activeSymbol: 'SPY',
+		watchlist: ['SPY', 'QQQ', 'DIA', 'IWM'],
+		workspace: null,
+		workspaceLoading: true,
+		workspaceError: null,
+	});
 
 	const selectedAction = actions[selectedActionIndex]!;
 	const selectedEntry = history[selectedHistoryIndex] ?? null;
@@ -70,6 +77,33 @@ export const App = () => {
 		setHistory(previous => [entry, ...previous].slice(0, 18));
 		setSelectedHistoryIndex(0);
 		setOutputScroll(0);
+	};
+
+	const refreshWorkspace = async (
+		nextSymbol = desk.activeSymbol,
+		nextWatchlist = desk.watchlist,
+	) => {
+		setDesk(previous => ({...previous, workspaceLoading: true, workspaceError: null}));
+		try {
+			const result = await invokeBridge({
+				action: 'workspace',
+				symbol: nextSymbol,
+				watchlist: nextWatchlist,
+			});
+			setDesk(previous => ({
+				...previous,
+				activeSymbol: result.data?.active_symbol ?? nextSymbol,
+				workspace: result.data,
+				workspaceLoading: false,
+			}));
+			setStatusSnapshot(result.data?.status ?? null);
+		} catch (error) {
+			setDesk(previous => ({
+				...previous,
+				workspaceLoading: false,
+				workspaceError: error instanceof Error ? error.message : String(error),
+			}));
+		}
 	};
 
 	const runRequest = async (request: BridgeRequest, sourceLabel: string, currentInput: string) => {
@@ -107,6 +141,24 @@ export const App = () => {
 				effectiveRequest.action === 'set-model'
 			) {
 				setStatusSnapshot(result.data);
+			}
+
+			const symbolFromResult =
+				result.data?.symbol ??
+				result.data?.quote?.symbol ??
+				result.data?.quotes?.[0]?.symbol ??
+				result.data?.active_symbol;
+			if (typeof symbolFromResult === 'string' && symbolFromResult.trim()) {
+				const nextSymbol = symbolFromResult.trim().toUpperCase();
+				const nextWatchlist = desk.watchlist.includes(nextSymbol)
+					? desk.watchlist
+					: [nextSymbol, ...desk.watchlist].slice(0, 8);
+				setDesk(previous => ({
+					...previous,
+					activeSymbol: nextSymbol,
+					watchlist: nextWatchlist,
+				}));
+				void refreshWorkspace(nextSymbol, nextWatchlist);
 			}
 
 			if (smokeTest) {
@@ -147,10 +199,7 @@ export const App = () => {
 		}
 
 		setStatusLoading(true);
-		void invokeBridge({action: 'status'})
-			.then(result => {
-				setStatusSnapshot(result.data);
-			})
+		void refreshWorkspace()
 			.catch(() => undefined)
 			.finally(() => {
 				setStatusLoading(false);
@@ -466,4 +515,3 @@ export const App = () => {
 		</Box>
 	);
 };
-
