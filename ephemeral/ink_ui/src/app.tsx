@@ -1,11 +1,12 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {Box, Text, useApp} from 'ink';
+import {Text, useApp} from 'ink';
 import {spawn} from 'node:child_process';
 import process from 'node:process';
 import {actions, parseSlashCommand, requestForAction} from './actions.js';
 import {invokeBridge, projectRoot, pythonExecutable} from './bridge.js';
 import {APP_VERSION, animationFrames, smokeTest} from './constants.js';
 import {KeyboardController} from './components/KeyboardController.js';
+import {ResearchDesk} from './components/ResearchDesk.js';
 import {useRawMode} from './hooks/useRawMode.js';
 import {useTerminalSize} from './hooks/useTerminalSize.js';
 import {
@@ -385,7 +386,7 @@ export const App = () => {
 	);
 
 	return (
-		<Box flexDirection="column" paddingX={1}>
+		<>
 			{!smokeTest && process.stdin.isTTY ? (
 				<KeyboardController
 					busy={busy}
@@ -403,115 +404,27 @@ export const App = () => {
 					exit={exit}
 				/>
 			) : null}
-
-			<Box justifyContent="space-between" flexDirection={layoutMode === 'desktop' ? 'row' : 'column'}>
-				<Box flexDirection="column" marginBottom={layoutMode === 'desktop' ? 0 : 1}>
-					<Text color="cyanBright" bold>
-						Ephemeral {APP_VERSION}
-					</Text>
-					<Text color="gray">Market intelligence, research workflows, and execution surfaces in one terminal shell.</Text>
-				</Box>
-				<Box flexDirection="column" alignItems={layoutMode === 'desktop' ? 'flex-end' : 'flex-start'}>
-					<Text color={headerTone}>{`${animationFrames[frameIndex]} ${shellStatus}`}</Text>
-					<Text color="gray">{topStatusLine}</Text>
-				</Box>
-			</Box>
-
-			<Divider width={dividerWidth} />
-
-			{layoutMode === 'desktop' ? (
-				<Box height={bodyHeight}>
-					<Box width={sidebarWidth} flexDirection="column">
-						{sidebarRows.map((row, index) => (
-							<Text key={`sidebar-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
-								{row.text || ' '}
-							</Text>
-						))}
-					</Box>
-					<Box width={3} alignItems="center" flexDirection="column">
-						{Array.from({length: bodyHeight}, (_, index) => (
-							<Text key={`rule-${index}`} color="gray">
-								│
-							</Text>
-						))}
-					</Box>
-					<Box width={mainWidth} flexDirection="column">
-						{workspaceRows.map((row, index) => (
-							<Box key={`workspace-${index}`} height={1}>
-								{row.node ? (
-									row.node
-								) : row.color || row.bold ? (
-									<Text color={row.color} bold={row.bold} wrap="truncate-end">
-										{row.text || ' '}
-									</Text>
-								) : (
-									renderStyledLine(row.text, actionAccent)
-								)}
-							</Box>
-						))}
-					</Box>
-				</Box>
-			) : (
-				<Box flexDirection="column">
-					{workspaceRows.map((row, index) => (
-						<Box key={`workspace-stacked-${index}`} height={1}>
-							{row.node ? (
-								row.node
-							) : row.color || row.bold ? (
-								<Text color={row.color} bold={row.bold} wrap="truncate-end">
-									{row.text || ' '}
-								</Text>
-							) : (
-								renderStyledLine(row.text, actionAccent)
-							)}
-						</Box>
-					))}
-					<Divider width={dividerWidth} />
-					{sidebarRows.slice(0, Math.min(sidebarRows.length, 16)).map((row, index) => (
-						<Text key={`sidebar-stacked-${index}`} color={row.color} bold={row.bold} wrap="truncate-end">
-							{row.text || ' '}
-						</Text>
-					))}
-				</Box>
-			)}
-
-			<Divider width={dividerWidth} />
-
-			<Box flexDirection="column">
-				<Box justifyContent="space-between">
-					<Text color={focusPane === 'input' ? actionAccent : 'white'} bold>
-						{selectedAction.label}
-					</Text>
-					<Text color={busy ? 'yellow' : 'gray'}>
-						{promptStatus}
-						{!busy && (
-							<>
-								{' · '}
-								<Text color="white" bold>Enter</Text>
-								{' to run'}
-							</>
-						)}
-					</Text>
-				</Box>
-				<Text>
-					<Text color={focusPane === 'input' ? actionAccent : 'gray'}>{'> '}</Text>
-					{input ? <Text>{input}</Text> : null}
-					{focusPane === 'input' ? <Text color={promptCursorColor}>{promptCursor}</Text> : null}
-					{!input ? <Text color="gray">{promptHint}</Text> : null}
-				</Text>
-				<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
-				<Text color="gray">
-					{composerShortcuts.map((shortcut, index) => (
-						<React.Fragment key={`${shortcut.key}-${shortcut.description}`}>
-							{index > 0 ? ' · ' : null}
-							<Text color="white" bold>
-								{shortcut.key}
-							</Text>{' '}
-							{shortcut.description}
-						</React.Fragment>
-					))}
-				</Text>
-			</Box>
-		</Box>
+			<ResearchDesk
+				actionAccent={actionAccent}
+				activityRows={activityRows}
+				bodyHeight={bodyHeight}
+				busy={busy}
+				desk={desk}
+				focusPane={focusPane}
+				headerTone={headerTone}
+				input={input}
+				promptCursor={promptCursor}
+				promptCursorColor={promptCursorColor}
+				promptHint={promptHint}
+				selectedAction={selectedAction}
+				shellStatus={shellStatus}
+				shortcuts={composerShortcuts}
+				terminalHeight={terminalHeight}
+				terminalWidth={terminalWidth}
+				topStatusLine={topStatusLine}
+				workspaceRows={workspaceRows}
+			/>
+		</>
 	);
+
 };
