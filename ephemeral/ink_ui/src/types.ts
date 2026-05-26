@@ -26,7 +26,7 @@ export type ActionId =
 	| 'export'
 	| 'legacy-ui';
 
-export type FocusPane = 'actions' | 'history' | 'output' | 'input';
+export type FocusPane = 'left' | 'workspace' | 'right' | 'input';
 export type DetailMode = 'rendered' | 'raw';
 export type LayoutMode = 'desktop' | 'stacked';
 

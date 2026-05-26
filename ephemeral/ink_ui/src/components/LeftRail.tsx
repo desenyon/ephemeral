@@ -36,7 +36,7 @@ export const LeftRail = ({
 	const watchlist = desk.workspace?.watchlist?.length ? desk.workspace.watchlist : desk.watchlist.map(symbol => ({symbol}));
 
 	rows.push(
-		<Text key="watch-title" color={focusPane === 'actions' ? 'yellow' : 'gray'} bold>
+		<Text key="watch-title" color={focusPane === 'left' ? 'yellow' : 'gray'} bold>
 			WATCHLIST
 		</Text>,
 	);
@@ -67,7 +67,7 @@ export const LeftRail = ({
 	}
 	rows.push(<Text key="gap-2"> </Text>);
 	rows.push(
-		<Text key="recent-title" color={focusPane === 'history' ? 'cyanBright' : 'gray'} bold>
+		<Text key="recent-title" color={focusPane === 'right' ? 'cyanBright' : 'gray'} bold>
 			ACTIVITY
 		</Text>,
 	);
@@ -84,7 +84,7 @@ export const LeftRail = ({
 	}
 
 	return (
-		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'actions' || focusPane === 'history' ? 'yellow' : 'gray'} paddingX={1}>
+		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'left' || focusPane === 'right' ? 'yellow' : 'gray'} paddingX={1}>
 			{rows.slice(0, Math.max(1, height - 2))}
 		</Box>
 	);

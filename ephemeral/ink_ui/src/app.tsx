@@ -191,7 +191,7 @@ export const App = () => {
 		const sourceLabel = slashRequest ? `Command ${currentInput.trim()}` : selectedAction.label;
 		void runRequest(request, sourceLabel, currentInput);
 		setInput('');
-		setFocusPane('output');
+		setFocusPane('workspace');
 	};
 
 	useEffect(() => {
@@ -295,16 +295,16 @@ export const App = () => {
 			}
 		}
 
-		if (focusPane === 'actions') {
+		if (focusPane === 'left') {
 			hints.push({key: 'Up/Down', description: 'navigate'});
 		}
 
-		if (focusPane === 'history') {
+		if (focusPane === 'right') {
 			hints.push({key: 'Up/Down', description: 'navigate'});
 			hints.push({key: 'Ctrl+L', description: 'clear history'});
 		}
 
-		if (focusPane === 'output') {
+		if (focusPane === 'workspace') {
 			hints.push({key: 'Up/Down', description: 'scroll'});
 			hints.push({key: '[ ]', description: 'page'});
 		}
@@ -315,7 +315,7 @@ export const App = () => {
 
 	const sidebarRows = useMemo(() => {
 		const rows: LineRow[] = [
-			{text: 'NAVIGATOR', color: focusPane === 'actions' ? actionAccent : 'gray', bold: true},
+			{text: 'NAVIGATOR', color: focusPane === 'left' ? actionAccent : 'gray', bold: true},
 			{text: `${metrics.provider} · ${truncate(String(metrics.model), 20)}`, color: 'gray'},
 			{text: ''},
 		];
@@ -330,19 +330,19 @@ export const App = () => {
 				const selected = action.id === selectedAction.id;
 				rows.push({
 					text: `${selected ? '>' : ' '} ${action.label}`,
-					color: selected ? (focusPane === 'actions' ? pickGroupColor(group) : 'white') : 'gray',
+					color: selected ? (focusPane === 'left' ? pickGroupColor(group) : 'white') : 'gray',
 					bold: selected,
 				});
 			}
 			rows.push({text: ''});
 		}
 
-		rows.push({text: 'RECENT', color: focusPane === 'history' ? 'cyanBright' : 'gray', bold: true});
+		rows.push({text: 'RECENT', color: focusPane === 'right' ? 'cyanBright' : 'gray', bold: true});
 		if (activityRows.length) {
 			for (const row of activityRows) {
 				rows.push({
 					text: `${row.selected ? '>' : ' '} ${truncate(row.label, 16)} · ${row.timestamp}`,
-					color: row.selected ? (focusPane === 'history' ? 'cyanBright' : 'white') : row.error ? 'red' : 'gray',
+					color: row.selected ? (focusPane === 'right' ? 'cyanBright' : 'white') : row.error ? 'red' : 'gray',
 					bold: row.selected,
 				});
 			}
@@ -363,7 +363,7 @@ export const App = () => {
 		() =>
 			padRows(
 				[
-					{text: workspaceStatus, color: focusPane === 'output' ? 'cyanBright' : 'white', bold: true},
+					{text: workspaceStatus, color: focusPane === 'workspace' ? 'cyanBright' : 'white', bold: true},
 					{text: workspaceSubtitle, color: 'gray'},
 					{text: ''},
 					...viewport.lines.map(line => ({text: line || ' '})),

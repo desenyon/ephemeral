@@ -34,6 +34,20 @@ export const KeyboardController = ({
 	setSelectedHistoryIndex,
 	exit,
 }: KeyboardControllerProps) => {
+	const nextPane = (pane: FocusPane): FocusPane => {
+		if (pane === 'left') return 'workspace';
+		if (pane === 'workspace') return 'right';
+		if (pane === 'right') return 'input';
+		return 'left';
+	};
+
+	const previousPane = (pane: FocusPane): FocusPane => {
+		if (pane === 'input') return 'right';
+		if (pane === 'right') return 'workspace';
+		if (pane === 'workspace') return 'left';
+		return 'left';
+	};
+
 	useInput((value, key) => {
 		if (key.ctrl && value === 'c') {
 			exit();
@@ -41,12 +55,7 @@ export const KeyboardController = ({
 		}
 
 		if (key.tab) {
-			setFocusPane(previous => {
-				if (previous === 'actions') return 'history';
-				if (previous === 'history') return 'output';
-				if (previous === 'output') return 'input';
-				return 'actions';
-			});
+			setFocusPane(previous => nextPane(previous));
 			return;
 		}
 
@@ -54,12 +63,7 @@ export const KeyboardController = ({
 			if (focusPane === 'input' && input.length > 0) {
 				return;
 			}
-			setFocusPane(previous => {
-				if (previous === 'input') return 'output';
-				if (previous === 'output') return 'history';
-				if (previous === 'history') return 'actions';
-				return 'actions';
-			});
+			setFocusPane(previous => previousPane(previous));
 			return;
 		}
 
@@ -67,12 +71,7 @@ export const KeyboardController = ({
 			if (focusPane === 'input' && input.length > 0) {
 				return;
 			}
-			setFocusPane(previous => {
-				if (previous === 'actions') return 'history';
-				if (previous === 'history') return 'output';
-				if (previous === 'output') return 'input';
-				return 'input';
-			});
+			setFocusPane(previous => nextPane(previous));
 			return;
 		}
 
@@ -88,6 +87,12 @@ export const KeyboardController = ({
 			return;
 		}
 
+		if (value === '/' && !input.trim()) {
+			setFocusPane('input');
+			setInput('/');
+			return;
+		}
+
 		if (key.downArrow && focusPane === 'input' && !input.trim()) {
 			setSelectedActionIndex(previous => (previous + 1) % actions.length);
 			return;
@@ -99,31 +104,31 @@ export const KeyboardController = ({
 		}
 
 		if ((value === 'j' || key.downArrow) && focusPane !== 'input') {
-			if (focusPane === 'actions') {
+			if (focusPane === 'left') {
 				setSelectedActionIndex(previous => (previous + 1) % actions.length);
 				return;
 			}
-			if (focusPane === 'history') {
-				setSelectedHistoryIndex(previous => Math.min(Math.max(historyLength - 1, 0), previous + 1));
+			if (focusPane === 'workspace') {
+				setOutputScroll(previous => previous + Math.max(1, Math.floor(outputViewportHeight / 3)));
 				return;
 			}
-			if (focusPane === 'output') {
-				setOutputScroll(previous => previous + Math.max(1, Math.floor(outputViewportHeight / 3)));
+			if (focusPane === 'right') {
+				setSelectedHistoryIndex(previous => Math.min(Math.max(historyLength - 1, 0), previous + 1));
 				return;
 			}
 		}
 
 		if ((value === 'k' || key.upArrow) && focusPane !== 'input') {
-			if (focusPane === 'actions') {
+			if (focusPane === 'left') {
 				setSelectedActionIndex(previous => (previous - 1 + actions.length) % actions.length);
 				return;
 			}
-			if (focusPane === 'history') {
-				setSelectedHistoryIndex(previous => Math.max(0, previous - 1));
+			if (focusPane === 'workspace') {
+				setOutputScroll(previous => Math.max(0, previous - Math.max(1, Math.floor(outputViewportHeight / 3))));
 				return;
 			}
-			if (focusPane === 'output') {
-				setOutputScroll(previous => Math.max(0, previous - Math.max(1, Math.floor(outputViewportHeight / 3))));
+			if (focusPane === 'right') {
+				setSelectedHistoryIndex(previous => Math.max(0, previous - 1));
 				return;
 			}
 		}

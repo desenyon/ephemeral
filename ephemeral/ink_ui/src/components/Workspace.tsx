@@ -20,7 +20,7 @@ export const Workspace = ({
 	width,
 	workspaceRows,
 }: Props) => (
-	<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'output' ? 'cyanBright' : 'gray'} paddingX={1}>
+	<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'workspace' ? 'cyanBright' : 'gray'} paddingX={1}>
 		<Box justifyContent="space-between">
 			<Text color="yellow" bold>
 				{selectedAction.label.toUpperCase()}
