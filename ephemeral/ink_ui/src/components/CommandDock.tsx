@@ -32,7 +32,7 @@ export const CommandDock = ({
 			</Text>
 			<Text color={busy ? 'yellow' : 'green'}>
 				{busy ? 'RUNNING' : 'READY'}
-				{!busy && (
+				{!busy && focusPane === 'input' && (
 					<>
 						{' · '}
 						<Text color="white" bold>Enter</Text>
