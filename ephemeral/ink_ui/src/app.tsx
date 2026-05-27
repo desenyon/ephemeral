@@ -309,7 +309,9 @@ export const App = () => {
 			hints.push({key: '[ ]', description: 'page'});
 		}
 
-		hints.push({key: 'd', description: 'toggle raw output'});
+		if (focusPane !== 'input') {
+			hints.push({key: 'd', description: 'toggle raw output'});
+		}
 		return hints;
 	}, [focusPane, input]);
 
