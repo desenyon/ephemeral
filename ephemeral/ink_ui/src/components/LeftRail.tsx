@@ -52,14 +52,14 @@ export const LeftRail = ({
 
 	for (const group of ['Research', 'Build', 'Ops'] as const) {
 		rows.push(
-			<Text key={`group-${group}`} color={selectedAction.group === group ? pickGroupColor(group) : 'gray'} bold>
+			<Text key={`group-${group}`} color={selectedAction.group === group ? (focusPane === 'left' ? pickGroupColor(group) : 'white') : 'gray'} bold>
 				{group.toUpperCase()}
 			</Text>,
 		);
 		for (const action of actions.filter(item => item.group === group)) {
 			const selected = action.id === selectedAction.id;
 			rows.push(
-				<Text key={`action-${action.id}`} color={selected ? pickGroupColor(group) : 'gray'} bold={selected} wrap="truncate-end">
+				<Text key={`action-${action.id}`} color={selected ? (focusPane === 'left' ? pickGroupColor(group) : 'white') : 'gray'} bold={selected} wrap="truncate-end">
 					{selected ? '>' : ' '} {action.label}
 				</Text>,
 			);
