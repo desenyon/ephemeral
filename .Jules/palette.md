@@ -8,3 +8,6 @@
 ## 2024-04-26 - [Interactive Pane State Hierarchy and Input Swallowing]
 **Learning:** Terminal interfaces with multiple interactive panes (like actions, history, output, and input) must explicitly scope single-character keyboard shortcuts to their intended active pane to prevent swallowing input intended for text inputs. Furthermore, users often lose context of which pane is active without clear visual hierarchy.
 **Action:** Always scope single-character shortcuts (e.g. `[`, `]`, `d`) to specific focus states (e.g., `focusPane === "output"`, `focusPane !== "input"`). Dim the text color of header titles for inactive panes (e.g., to `gray`) to create a clear visual hierarchy and direct attention to the active workspace.
+## 2024-05-18 - [Strict Visual Focus Highlighting Boundaries]
+**Learning:** In multi-pane terminal interfaces, combining cross-pane logical checks (e.g., highlighting the left rail when `focusPane` is `'right'`) dilutes the primary visual focus cue and causes user confusion. Each pane's visual activation state must strictly match its logical focus state.
+**Action:** Ensure visual focus highlighting (border and text colors) strictly reflects the logical `focusPane` state without bleeding across panes (e.g., highlight `RightRail` *only* when `focusPane === 'right'`).
