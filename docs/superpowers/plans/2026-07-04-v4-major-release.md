@@ -42,7 +42,7 @@
 - [x] Propagate version via launcher JSON / build scripts (no hard-coded duplicates)
 - [x] Update `CHANGELOG.md` with v4.0.0 section (Research Desk + QA reliability)
 - [x] Update `README.md` for v4.0 product story
-- [ ] Tag `v4.0.0` when user requests commit/push
+- [x] Tag `v4.0.0` when user requests commit/push
 
 ## Phase 3 — Research Desk polish (from plan)
 
