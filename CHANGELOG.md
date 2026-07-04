@@ -2,6 +2,24 @@
 
 All notable changes to Ephemeral are recorded here.
 
+## 4.0.0
+
+Released: 2026-07-04
+
+### Major release
+
+- Merged Research Desk (v3.9) with reliability and setup-trust improvements from the QA roadmap.
+- Unified model catalog: single source of truth for provider routing, Ink model lists, and CLI validation.
+- Actionable setup status separates missing keys, unavailable local models, and optional tool gaps.
+- Provider and model writes are validated before persisting to `~/.ephemeral/config.env`.
+- Release version is centralized: Python launcher passes `EPHEMERAL_VERSION` to Ink; build scripts read `version.py`.
+- Closed 81 stale Palette bot PRs; absorbed focus-hierarchy UX into CommandDock and workspace chrome.
+
+### UI
+
+- Hide "Enter to run" and pane shortcuts when the command dock is not focused.
+- Dim inactive workspace headers; fix activity rail focus highlighting.
+
 ## 3.9.0
 
 Released: 2026-05-26

@@ -115,6 +115,7 @@ venv.bak/
 # Ephemeral specific
 .superpowers/
 .worktrees/
+graphify-out/
 *.dmg
 *.app
 Ephemeral.app/

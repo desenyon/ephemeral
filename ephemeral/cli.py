@@ -1,4 +1,4 @@
-"""CLI entry point for Ephemeral v3.9.0 — Rich UX layer over the TUI and one-shot commands."""
+"""CLI entry point for Ephemeral v4.0.0 — Rich UX layer over the TUI and one-shot commands."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from .cli_ui import (
 )
 from .config import (
     AVAILABLE_MODELS,
+    LLMProvider,
     detect_lean_installation,
     detect_ollama,
     get_settings,
@@ -29,6 +30,7 @@ from .config import (
     mark_first_run_complete,
     save_api_key,
     save_setting,
+    validate_model_for_provider,
 )
 from .ink_launcher import launch_ink_ui
 from .version import VERSION
@@ -251,12 +253,19 @@ def main() -> int:
         return 0
 
     if args.provider or args.model:
-        if args.provider:
-            save_setting("default_provider", args.provider)
-            console.print(f"[bold cyan]E[/bold cyan] Default provider → [bold]{args.provider}[/bold]")
-        if args.model:
-            save_setting("default_model", args.model)
-            console.print(f"[bold cyan]E[/bold cyan] Default model → [bold]{args.model}[/bold]")
+        try:
+            provider = LLMProvider(args.provider) if args.provider else get_settings().default_provider
+            if args.model:
+                validate_model_for_provider(provider, args.model)
+            if args.provider:
+                save_setting("default_provider", args.provider)
+                console.print(f"[bold cyan]E[/bold cyan] Default provider → [bold]{args.provider}[/bold]")
+            if args.model:
+                save_setting("default_model", args.model)
+                console.print(f"[bold cyan]E[/bold cyan] Default model → [bold]{args.model}[/bold]")
+        except ValueError as exc:
+            console.print(f"[red]Error:[/red] {exc}")
+            return 1
         return 0
 
     if args.command == "ask":

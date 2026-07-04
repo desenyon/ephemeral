@@ -14,6 +14,7 @@ from typing import Any, Dict, List
 
 from ephemeral.config import (
     AVAILABLE_MODELS,
+    LLMProvider,
     detect_lean_installation,
     detect_ollama,
     get_settings,
@@ -22,6 +23,8 @@ from ephemeral.config import (
     ollama_has_model,
     save_api_key,
     save_setting,
+    validate_model_for_provider,
+    validate_provider_id,
 )
 from ephemeral.ink_launcher import ink_dependencies_ready, ink_ui_root, install_hint
 from ephemeral.research.workspace import build_workspace_snapshot
@@ -81,7 +84,9 @@ def _build_markdown_export(payload: Dict[str, Any]) -> str:
     return "\n".join(lines).strip() + "\n"
 
 
-def _cached_payload(key: str, builder, ttl_seconds: float = STATUS_CACHE_TTL_SECONDS) -> Dict[str, Any]:
+def _cached_payload(
+    key: str, builder, ttl_seconds: float = STATUS_CACHE_TTL_SECONDS
+) -> Dict[str, Any]:
     now = time.monotonic()
     cached = _PAYLOAD_CACHE.get(key)
     if cached and now - cached[0] <= ttl_seconds:
@@ -96,6 +101,66 @@ def _invalidate_cached_payloads() -> None:
     _PAYLOAD_CACHE.clear()
 
 
+def _setup_issues(
+    settings: Any,
+    *,
+    ollama_reachable: bool,
+    current_model: str,
+    current_model_available: bool,
+    installed_models: List[str],
+) -> List[Dict[str, str]]:
+    provider = settings.default_provider
+    if provider != LLMProvider.OLLAMA:
+        api_key = settings.get_api_key(provider)
+        if api_key:
+            return []
+        provider_name = provider.value if hasattr(provider, "value") else str(provider)
+        return [
+            {
+                "code": "cloud_key_missing",
+                "severity": "required",
+                "message": f"{provider_name} is selected, but its API key is not configured.",
+                "hint": f"Run `ephemeral --setkey {provider_name} <key>` or choose another provider.",
+            }
+        ]
+
+    if not ollama_reachable:
+        return [
+            {
+                "code": "ollama_unreachable",
+                "severity": "required",
+                "message": "Ollama is selected, but the local service is not reachable.",
+                "hint": "Start Ollama with `ollama serve` or choose a cloud provider.",
+            }
+        ]
+
+    if not current_model:
+        return [
+            {
+                "code": "local_model_missing",
+                "severity": "required",
+                "message": "Ollama is selected, but no default model is configured.",
+                "hint": "Run `ephemeral --model <installed-model>`.",
+            }
+        ]
+
+    if current_model_available:
+        return []
+
+    installed = ", ".join(installed_models[:5])
+    hint = f"Pull {current_model} with `ollama pull {current_model}`."
+    if installed:
+        hint = f"Pull {current_model} or switch to an installed model: {installed}"
+    return [
+        {
+            "code": "local_model_missing",
+            "severity": "required",
+            "message": f"Ollama is reachable, but {current_model} is not installed.",
+            "hint": hint,
+        }
+    ]
+
+
 def _status_payload() -> Dict[str, Any]:
     settings = get_settings()
     health = collect_service_health(settings)
@@ -103,12 +168,21 @@ def _status_payload() -> Dict[str, Any]:
     ollama_host = detected_host or settings.ollama_host
     installed_models = list_ollama_model_names(ollama_host) if ollama_reachable else []
     current_model = settings.default_model
-    current_model_available = ollama_has_model(ollama_host, current_model) if current_model else False
+    current_model_available = (
+        ollama_has_model(ollama_host, current_model) if current_model else False
+    )
 
     return {
         "provider": settings.default_provider.value,
         "model": current_model,
         "needs_setup": needs_llm_setup(settings),
+        "setup_issues": _setup_issues(
+            settings,
+            ollama_reachable=ollama_reachable,
+            current_model=current_model,
+            current_model_available=current_model_available,
+            installed_models=installed_models,
+        ),
         "local_ready": ollama_reachable and current_model_available,
         "ollama": {
             "reachable": ollama_reachable,
@@ -165,7 +239,10 @@ def _shortcuts_payload() -> Dict[str, Any]:
         "items": [
             {"key": "Enter", "action": "Run the current action or slash command"},
             {"key": "Tab", "action": "Rotate between navigator, history, result, and composer"},
-            {"key": "Up / Down", "action": "Move the highlighted action when the composer is empty"},
+            {
+                "key": "Up / Down",
+                "action": "Move the highlighted action when the composer is empty",
+            },
             {"key": "Esc", "action": "Clear the current input"},
             {"key": "Ctrl+L", "action": "Clear history"},
             {"key": "Ctrl+C", "action": "Quit"},
@@ -212,7 +289,9 @@ def _reload_payload() -> Dict[str, Any]:
     from ephemeral.llm import get_router
 
     settings = get_settings()
-    health = collect_service_health(settings, router_factory=lambda: get_router(settings, force=True))
+    health = collect_service_health(
+        settings, router_factory=lambda: get_router(settings, force=True)
+    )
     status = _status_payload()
     status["health"] = health.to_dict()
     return {
@@ -271,7 +350,9 @@ async def _ask_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 def _quote_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from ephemeral.tools import get_stock_quote
 
-    symbols = [str(symbol).upper() for symbol in payload.get("symbols") or [] if str(symbol).strip()]
+    symbols = [
+        str(symbol).upper() for symbol in payload.get("symbols") or [] if str(symbol).strip()
+    ]
     if not symbols:
         raise BridgeError("`quote` requires one or more symbols.")
     return {"quotes": [get_stock_quote(symbol) for symbol in symbols]}
@@ -291,7 +372,9 @@ def _news_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 def _compare_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from ephemeral.tools import compare_stocks
 
-    symbols = [str(symbol).upper() for symbol in payload.get("symbols") or [] if str(symbol).strip()]
+    symbols = [
+        str(symbol).upper() for symbol in payload.get("symbols") or [] if str(symbol).strip()
+    ]
     if len(symbols) < 2:
         raise BridgeError("`compare` requires at least two symbols.")
     period = str(payload.get("period") or "1y")
@@ -306,9 +389,7 @@ def _chart_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     symbol = str(payload.get("symbol") or "").upper().strip()
     period = str(payload.get("period") or "6mo")
     compare_symbols = [
-        str(item).upper()
-        for item in payload.get("symbols") or []
-        if str(item).strip()
+        str(item).upper() for item in payload.get("symbols") or [] if str(item).strip()
     ]
     if compare_symbols:
         histories: Dict[str, Any] = {}
@@ -395,7 +476,11 @@ def _set_provider_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     provider = str(payload.get("provider") or "").strip().lower()
     if not provider:
         raise BridgeError("`set-provider` requires a provider.")
-    save_setting("default_provider", provider)
+    try:
+        validate_provider_id(provider)
+        save_setting("default_provider", provider)
+    except ValueError as exc:
+        raise BridgeError(str(exc)) from exc
     return _status_payload()
 
 
@@ -403,7 +488,12 @@ def _set_model_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     model = str(payload.get("model") or "").strip()
     if not model:
         raise BridgeError("`set-model` requires a model id.")
-    save_setting("default_model", model)
+    settings = get_settings()
+    try:
+        validate_model_for_provider(settings.default_provider, model)
+        save_setting("default_model", model)
+    except ValueError as exc:
+        raise BridgeError(str(exc)) from exc
     return _status_payload()
 
 

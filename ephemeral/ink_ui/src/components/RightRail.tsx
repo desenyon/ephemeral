@@ -91,7 +91,7 @@ export const RightRail = ({desk, focusPane, height, width}: Props) => {
 	}
 
 	return (
-		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor="gray" paddingX={1}>
+		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'right' ? 'magentaBright' : 'gray'} paddingX={1}>
 			{rows.slice(0, Math.max(1, height - 2))}
 		</Box>
 	);

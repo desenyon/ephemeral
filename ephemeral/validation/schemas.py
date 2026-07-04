@@ -246,7 +246,7 @@ class DataQualityFlags(BaseModel):
 
 
 class CorporateEventStub(BaseModel):
-    """Dividend or split stub for calendars."""
+    """Dividend, split, or earnings calendar event schema."""
 
     symbol: str
     event_type: Literal["dividend", "split", "earnings"]
@@ -334,7 +334,7 @@ class EarningsEvent(BaseModel):
 
 
 class CreditStub(BaseModel):
-    """Credit metric placeholder."""
+    """Credit metric schema for optional fixed-income enrichment."""
 
     symbol: str
     rating: Optional[str] = None
@@ -418,7 +418,7 @@ class WebFetchRequest(BaseModel):
 
 
 class EmbeddingRequestStub(BaseModel):
-    """Vector embedding job stub."""
+    """Vector embedding job request schema."""
 
     text: str = Field(..., min_length=1, max_length=100_000)
     model: str = "text-embedding-3-small"
@@ -513,7 +513,7 @@ class RetryPolicy(BaseModel):
 
 
 class TracingContext(BaseModel):
-    """Distributed tracing stub."""
+    """Distributed tracing context schema."""
 
     trace_id: str
     span_id: str

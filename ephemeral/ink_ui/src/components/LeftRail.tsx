@@ -67,7 +67,7 @@ export const LeftRail = ({
 	}
 	rows.push(<Text key="gap-2"> </Text>);
 	rows.push(
-		<Text key="recent-title" color={focusPane === 'right' ? 'cyanBright' : 'gray'} bold>
+		<Text key="recent-title" color={focusPane === 'left' ? 'cyanBright' : 'gray'} bold>
 			ACTIVITY
 		</Text>,
 	);

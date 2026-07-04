@@ -6,7 +6,7 @@
 
 ### A terminal-native research desk for markets, models, and decision loops.
 
-[![Version](https://img.shields.io/badge/version-3.9.0-ff9f0a?style=for-the-badge&logo=python&logoColor=white)](./ephemeral/version.py)
+[![Version](https://img.shields.io/badge/version-4.0.0-ff9f0a?style=for-the-badge&logo=python&logoColor=white)](./ephemeral/version.py)
 [![Interface](https://img.shields.io/badge/interface-Ink%206%20Research%20Desk-0a0a0a?style=for-the-badge)](https://github.com/vadimdemedes/ink)
 [![Python](https://img.shields.io/badge/python-3.11+-111827?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-required-12f7a6?style=for-the-badge&logo=nodedotjs&logoColor=0a0a0a)](https://nodejs.org/)
@@ -20,7 +20,7 @@ Ephemeral turns a terminal into a professional research workstation: live symbol
 ## The Desk
 
 ```text
- EPHEMERAL RESEARCH DESK SPY v3.9.0                        LIVE · ready
+ EPHEMERAL RESEARCH DESK SPY v4.0.0                        LIVE · ready
  Research / Ask / Research · Ask · local ready              workspace ready
  ┌────────────────────┐ ┌────────────────────────────────────┐ ┌────────────────────┐
  │ WATCHLIST          │ │ ASK                     workspace  │ │ CONTEXT            │
@@ -73,7 +73,7 @@ curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/ins
 Pin a release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v3.9.0 bash
+curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v4.0.0 bash
 ```
 
 Requirements:

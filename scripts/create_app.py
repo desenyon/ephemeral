@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
 """Create a native macOS application bundle for Ephemeral."""
 
+import importlib.util
 import os
 import plistlib
 import shutil
 import subprocess
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+VERSION_SPEC = importlib.util.spec_from_file_location(
+    "ephemeral_version",
+    PROJECT_ROOT / "ephemeral" / "version.py",
+)
+if VERSION_SPEC is None or VERSION_SPEC.loader is None:
+    raise RuntimeError("Could not load Ephemeral version metadata.")
+VERSION_MODULE = importlib.util.module_from_spec(VERSION_SPEC)
+VERSION_SPEC.loader.exec_module(VERSION_MODULE)
+VERSION = VERSION_MODULE.VERSION
+
 APP_NAME = "Ephemeral"
-VERSION = "3.9.0"
 BUNDLE_ID = "com.ephemeral.app"
 
 
@@ -208,7 +219,7 @@ def create_app_bundle(output_dir: str = "dist"):
 
     os.chmod(launcher_path, 0o755)
 
-    # Create app icon (simple placeholder - generates an icns file)
+    # Create the bundled app icon.
     create_app_icon(resources / "AppIcon.icns")
 
     print(f"Created {app_path}")
@@ -256,7 +267,7 @@ def create_app_icon(icon_path: Path):
 
         # Try using qlmanage (built into macOS)
         try:
-            # For now, create a simple colored square as placeholder
+            # Generate a deterministic branded bitmap at each required size.
             _create_simple_icon(png_path, size)
         except Exception as e:
             print(f"Warning: Could not create icon at size {size}: {e}")
@@ -276,8 +287,8 @@ def create_app_icon(icon_path: Path):
             capture_output=True,
         )
     except subprocess.CalledProcessError:
-        # If iconutil fails, create a simple placeholder
-        print("Warning: Could not create .icns file. Using placeholder.")
+        # Keep a deterministic fallback PNG so the bundle still has an icon asset.
+        print("Warning: Could not create .icns file. Using fallback PNG icon.")
 
     # Cleanup
     shutil.rmtree(iconset_dir, ignore_errors=True)

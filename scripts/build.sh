@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( cd "$SCRIPT_DIR/.." && pwd )"
-RELEASE_VERSION="3.9.0"
+RELEASE_VERSION="$(sed -n 's/^VERSION = "\([^"]*\)"/\1/p' "$PROJECT_DIR/ephemeral/version.py")"
 
 echo "========================================"
 echo "  Ephemeral v${RELEASE_VERSION} Build Script"

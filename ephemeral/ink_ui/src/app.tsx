@@ -207,6 +207,17 @@ export const App = () => {
 			});
 	}, []);
 
+	useEffect(() => {
+		if (smokeTest) {
+			return;
+		}
+
+		const timer = setInterval(() => {
+			void refreshWorkspace();
+		}, 90_000);
+		return () => clearInterval(timer);
+	}, [desk.activeSymbol, desk.watchlist.join(',')]);
+
 	const layoutMode: LayoutMode = terminalWidth >= 120 && terminalHeight >= 24 ? 'desktop' : 'stacked';
 	const sidebarWidth = layoutMode === 'desktop' ? clamp(Math.floor(terminalWidth * 0.24), 26, 30) : terminalWidth - 2;
 	const mainWidth = layoutMode === 'desktop' ? Math.max(terminalWidth - sidebarWidth - 5, 60) : terminalWidth - 2;
@@ -310,6 +321,7 @@ export const App = () => {
 		}
 
 		hints.push({key: 'd', description: 'toggle raw output'});
+		hints.push({key: 'Ctrl+R', description: 'refresh workspace'});
 		return hints;
 	}, [focusPane, input]);
 
@@ -393,6 +405,9 @@ export const App = () => {
 					focusPane={focusPane}
 					historyLength={history.length}
 					input={input}
+					onRefreshWorkspace={() => {
+						void refreshWorkspace();
+					}}
 					onRun={handleRun}
 					outputViewportHeight={outputViewportHeight}
 					setDetailMode={setDetailMode}

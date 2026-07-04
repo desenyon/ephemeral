@@ -516,7 +516,7 @@ def generate_signals(prices: pd.Series) -> pd.Series:
     Entry: {rule.entry_condition}
     Exit: {rule.exit_condition or "Reverse signal"}
     """
-    # TODO: Implement custom logic
+    # Starter template: replace with custom rule logic before production use.
     signal = pd.Series(0, index=prices.index)
     return signal
 '''

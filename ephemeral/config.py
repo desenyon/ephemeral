@@ -1,4 +1,4 @@
-"""Configuration management for Ephemeral v3.9.0."""
+"""Configuration management for Ephemeral v4.0.0."""
 
 import json
 import shutil
@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ephemeral.model_catalog import available_models_by_provider
+
 from .version import VERSION
 
 # Load environment variables from .env file immediately
@@ -22,6 +24,7 @@ __version__ = VERSION
 
 class ErrorCode(IntEnum):
     """Error codes for consistent error handling."""
+
     # General errors (1000-1099)
     UNKNOWN_ERROR = 1000
     INVALID_INPUT = 1001
@@ -65,12 +68,13 @@ class EphemeralError(Exception):
             "error_code": int(self.code),
             "error_name": self.code.name,
             "message": self.message,
-            "details": self.details
+            "details": self.details,
         }
 
 
 class LLMProvider(str, Enum):
     """Supported LLM providers."""
+
     GOOGLE = "google"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
@@ -79,48 +83,7 @@ class LLMProvider(str, Enum):
     OLLAMA = "ollama"
 
 
-# Available models per provider (2026 tier lists — API-style ids for routing/docs)
-AVAILABLE_MODELS = {
-    "google": [
-        "gemini-3.1-pro",       # Flagship reasoning / multimodal
-        "gemini-3-pro",         # Strong general multimodal
-        "gemini-3-flash",       # Fast, high-throughput
-        "gemini-3-pro-image",   # Image-heavy workflows
-    ],
-    "openai": [
-        "gpt-5.4",              # Top-tier general / agentic
-        "gpt-5.2",              # Strong reasoning & knowledge work
-        "gpt-5.1",
-        "gpt-5",
-        "gpt-5-mini",
-        "gpt-5-nano",
-        "o3-preview",           # Deep reasoning (preview)
-        "o3-mini",
-    ],
-    "anthropic": [
-        "claude-opus-4-6",
-        "claude-sonnet-4-6",
-    ],
-    "groq": [
-        "llama-3.3-70b-versatile",
-        "llama-3.3-8b-instant",
-        "mixtral-8x7b-32768",
-    ],
-    "xai": [
-        "grok-4",
-        "grok-4-mini",
-    ],
-    "ollama": [
-        "qwen3.5:8b",           # Strong local default (pull when available)
-        "qwen3.5:4b",
-        "qwen2.5:1.5b",
-        "qwen2.5:7b",
-        "llama3.3",
-        "llama3.2",
-        "mistral",
-        "deepseek-r1",
-    ],
-}
+AVAILABLE_MODELS = available_models_by_provider()
 
 # Config directory
 CONFIG_DIR = Path.home() / ".ephemeral"
@@ -148,8 +111,13 @@ def is_first_run() -> bool:
         try:
             content = CONFIG_FILE.read_text()
             # Check if any API key is set (not empty)
-            api_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
-                       "GROQ_API_KEY", "XAI_API_KEY"]
+            api_keys = [
+                "GOOGLE_API_KEY",
+                "OPENAI_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "GROQ_API_KEY",
+                "XAI_API_KEY",
+            ]
             for key in api_keys:
                 # Look for KEY=value where value is not empty
                 for line in content.splitlines():
@@ -197,7 +165,11 @@ def detect_lean_installation() -> Tuple[bool, Optional[str], Optional[str]]:
     for path in common_paths:
         if path.exists():
             # Check for LEAN directory structure
-            if (path / "Launcher").exists() or (path / "Algorithm.Python").exists() or (path / "lean.json").exists():
+            if (
+                (path / "Launcher").exists()
+                or (path / "Algorithm.Python").exists()
+                or (path / "lean.json").exists()
+            ):
                 lean_directory = str(path)
                 break
 
@@ -206,10 +178,7 @@ def detect_lean_installation() -> Tuple[bool, Optional[str], Optional[str]]:
         for pip_cmd in ["pip3", "pip"]:
             try:
                 result = subprocess.run(
-                    [pip_cmd, "show", "lean"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
+                    [pip_cmd, "show", "lean"], capture_output=True, text=True, timeout=10
                 )
                 if result.returncode == 0:
                     # Parse location from pip show output
@@ -227,10 +196,7 @@ def detect_lean_installation() -> Tuple[bool, Optional[str], Optional[str]]:
     if not lean_cli_path:
         try:
             result = subprocess.run(
-                ["lean", "--version"],
-                capture_output=True,
-                text=True,
-                timeout=5
+                ["lean", "--version"], capture_output=True, text=True, timeout=5
             )
             if result.returncode == 0:
                 lean_cli_path = "lean"
@@ -253,9 +219,11 @@ async def install_lean_cli() -> Tuple[bool, str]:
         for pip_cmd in ["pip3", "pip"]:
             try:
                 process = await asyncio.create_subprocess_exec(
-                    pip_cmd, "install", "lean",
+                    pip_cmd,
+                    "install",
+                    "lean",
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=120)
 
@@ -279,10 +247,7 @@ def install_lean_cli_sync() -> Tuple[bool, str]:
         for pip_cmd in ["pip3", "pip"]:
             try:
                 result = subprocess.run(
-                    [pip_cmd, "install", "lean"],
-                    capture_output=True,
-                    text=True,
-                    timeout=120
+                    [pip_cmd, "install", "lean"], capture_output=True, text=True, timeout=120
                 )
 
                 if result.returncode == 0:
@@ -534,7 +499,13 @@ def save_api_key(provider: str, key: str) -> bool:
             f.write(f"# Updated: {__import__('datetime').datetime.now().isoformat()}\n\n")
 
             # Group by type for readability
-            llm_keys = ["GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GROQ_API_KEY", "XAI_API_KEY"]
+            llm_keys = [
+                "GOOGLE_API_KEY",
+                "OPENAI_API_KEY",
+                "ANTHROPIC_API_KEY",
+                "GROQ_API_KEY",
+                "XAI_API_KEY",
+            ]
             data_keys = ["POLYGON_API_KEY", "ALPHA_VANTAGE_API_KEY", "EXA_API_KEY"]
 
             f.write("# LLM Provider Keys\n")
@@ -565,6 +536,32 @@ def get_api_key(provider: str) -> Optional[str]:
         return None
 
 
+def validate_provider_id(provider: str) -> LLMProvider:
+    """Return a provider enum or raise a user-facing validation error."""
+    try:
+        return LLMProvider(str(provider).strip().lower())
+    except ValueError as exc:
+        valid = ", ".join(item.value for item in LLMProvider)
+        raise ValueError(f"Unknown provider '{provider}'. Valid providers: {valid}") from exc
+
+
+def validate_model_for_provider(provider: LLMProvider, model: str) -> None:
+    """Reject cloud model/provider mismatches while allowing arbitrary Ollama ids."""
+    candidate = str(model or "").strip()
+    if not candidate:
+        raise ValueError("Model id cannot be empty.")
+    if provider == LLMProvider.OLLAMA:
+        return
+
+    from ephemeral.llm.registry import REGISTRY
+
+    resolved_provider = REGISTRY.get_provider(candidate)
+    if resolved_provider != provider.value:
+        raise ValueError(
+            f"Model '{candidate}' belongs to {resolved_provider}, but the active provider is {provider.value}."
+        )
+
+
 def save_setting(key: str, value: str) -> None:
     """Save a setting to the config file."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -593,6 +590,16 @@ def save_setting(key: str, value: str) -> None:
     }
 
     config_key = setting_map.get(key, key.upper())
+    if config_key == "DEFAULT_PROVIDER":
+        validate_provider_id(value)
+    elif config_key == "DEFAULT_MODEL":
+        provider_value = config.get("DEFAULT_PROVIDER")
+        provider = (
+            validate_provider_id(provider_value)
+            if provider_value
+            else get_settings().default_provider
+        )
+        validate_model_for_provider(provider, value)
     config[config_key] = str(value)
 
     # Write back

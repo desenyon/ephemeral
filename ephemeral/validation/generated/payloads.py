@@ -1,4 +1,8 @@
-"""Auto-generated placeholder request models for validation coverage."""
+"""Auto-generated synthetic request models for validation coverage.
+
+See ephemeral/validation/generated/README.md for purpose, ownership, and regen notes.
+Do not import from product code paths — tests only.
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -3605,4 +3609,3 @@ class GenPayload0449(BaseModel):
     score: float = Field(default=0.0, ge=-1e9, le=1e9)
     notes: Optional[str] = None
     items: List[str] = Field(default_factory=list)
-

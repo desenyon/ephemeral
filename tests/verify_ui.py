@@ -7,8 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from ephemeral.version import VERSION
+
 print("=" * 60)
-print("EPHEMERAL v3.9.0 - UI VERIFICATION")
+print(f"EPHEMERAL v{VERSION} - UI VERIFICATION")
 print("=" * 60)
 
 print("\n[1] Checking app components...")
@@ -27,7 +29,7 @@ try:
     print(f"  [ok] App components imported - v{__version__}")
     print(f"  [ok] SUGGESTIONS: {len(SUGGESTIONS)} items")
     print(f"  [ok] SYSTEM_PROMPT length: {len(SYSTEM_PROMPT)} chars")
-    assert "3.9.0" in WELCOME_BANNER
+    assert VERSION in WELCOME_BANNER
 except ImportError as e:
     print(f"  [FAIL] Import error: {e}")
     sys.exit(1)
@@ -128,7 +130,7 @@ except Exception as e:
 print("\n[9] Checking version consistency...")
 print(f"  App version: {app_v}")
 print(f"  Config version: {cfg_v}")
-version_match = app_v == cfg_v == "3.9.0"
+version_match = app_v == cfg_v == VERSION
 print(f"  [{'ok' if version_match else 'FAIL'}] Versions {'match' if version_match else 'mismatch'}")
 
 print("\n[10] Checking for no emojis in WELCOME_BANNER...")

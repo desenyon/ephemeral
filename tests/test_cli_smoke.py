@@ -19,10 +19,12 @@ def run_cli(args: list[str], tmp_path) -> int:
 
 
 def test_version_no_ui_prints_plain_version(tmp_path, capsys) -> None:
+    from ephemeral.version import VERSION
+
     exit_code = run_cli(["--version", "--no-ui"], tmp_path)
 
     assert exit_code == 0
-    assert capsys.readouterr().out.strip() == "ephemeral 3.9.0"
+    assert capsys.readouterr().out.strip() == f"ephemeral {VERSION}"
 
 
 def test_list_models_smoke(tmp_path, capsys) -> None:

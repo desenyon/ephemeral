@@ -20,7 +20,7 @@ The `scripts/` directory contains essential automation utilities for building, p
 - Creates the folder structure (`Ephemeral.app/Contents/MacOS`, `Resources`, etc.).
 - Generates `Info.plist` with metadata (Bundle ID: `com.ephemeral.app`).
 - Creates a launcher script that detects the user's Python installation (python.org, `/usr/local`, or system) and launches the module.
-- Handles icon generation (currently placeholder).
+- Handles deterministic fallback icon generation.
 **Dependencies**: Standard Python libraries (`os`, `plistlib`, `shutil`).
 
 ## Usage

@@ -6,6 +6,7 @@ import asyncio
 from unittest.mock import AsyncMock, patch
 
 from ephemeral import ink_bridge
+from ephemeral.config import LLMProvider, Settings
 
 
 def test_status_payload_contains_provider_and_health() -> None:
@@ -28,10 +29,40 @@ def test_status_payload_reports_local_ready() -> None:
     assert payload["ollama"]["current_model_available"] is True
 
 
+def test_status_payload_explains_missing_local_model() -> None:
+    class Health:
+        router_backends = ["ollama"]
+
+        def to_dict(self) -> dict:
+            return {"checks": [], "router_backends": self.router_backends}
+
+    settings = Settings(DEFAULT_PROVIDER=LLMProvider.OLLAMA, DEFAULT_MODEL="qwen2.5:1.5b")
+    with (
+        patch("ephemeral.ink_bridge.get_settings", return_value=settings),
+        patch("ephemeral.ink_bridge.collect_service_health", return_value=Health()),
+        patch("ephemeral.ink_bridge.detect_ollama", return_value=(True, "http://localhost:11434")),
+        patch("ephemeral.ink_bridge.list_ollama_model_names", return_value=["gemma4:e4b"]),
+        patch("ephemeral.ink_bridge.ollama_has_model", return_value=False),
+    ):
+        payload = ink_bridge._status_payload()
+
+    assert payload["needs_setup"] is True
+    assert payload["setup_issues"] == [
+        {
+            "code": "local_model_missing",
+            "severity": "required",
+            "message": "Ollama is reachable, but qwen2.5:1.5b is not installed.",
+            "hint": "Pull qwen2.5:1.5b or switch to an installed model: gemma4:e4b",
+        }
+    ]
+
+
 def test_status_request_uses_cache() -> None:
     ink_bridge._invalidate_cached_payloads()
     try:
-        with patch("ephemeral.ink_bridge._status_payload", return_value={"provider": "ollama"}) as status_payload:
+        with patch(
+            "ephemeral.ink_bridge._status_payload", return_value={"provider": "ollama"}
+        ) as status_payload:
             first = asyncio.run(ink_bridge.handle_request({"action": "status"}))
             second = asyncio.run(ink_bridge.handle_request({"action": "status"}))
     finally:
@@ -105,7 +136,9 @@ def test_handle_request_routes_workspace_payload() -> None:
 
 
 def test_handle_packet_preserves_request_id() -> None:
-    response = asyncio.run(ink_bridge.handle_packet({"id": "packet-1", "payload": {"action": "help"}}))
+    response = asyncio.run(
+        ink_bridge.handle_packet({"id": "packet-1", "payload": {"action": "help"}})
+    )
     assert response["id"] == "packet-1"
     assert response["ok"] is True
 
@@ -121,9 +154,45 @@ def test_quote_payload_raises_without_symbols() -> None:
 
 def test_handle_request_set_provider_delegates_to_save_setting() -> None:
     with patch("ephemeral.ink_bridge.save_setting") as save_setting:
-        result = asyncio.run(ink_bridge.handle_request({"action": "set-provider", "provider": "ollama"}))
+        result = asyncio.run(
+            ink_bridge.handle_request({"action": "set-provider", "provider": "ollama"})
+        )
     save_setting.assert_called_once_with("default_provider", "ollama")
     assert result["ok"] is True
+
+
+def test_set_provider_rejects_unknown_provider(tmp_path) -> None:
+    with (
+        patch("ephemeral.config.CONFIG_DIR", tmp_path),
+        patch("ephemeral.config.CONFIG_FILE", tmp_path / "config.env"),
+    ):
+        try:
+            asyncio.run(
+                ink_bridge.handle_request({"action": "set-provider", "provider": "not-real"})
+            )
+        except ink_bridge.BridgeError as exc:
+            assert "Unknown provider" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected BridgeError for unknown provider")
+
+
+def test_set_model_rejects_cloud_provider_mismatch(tmp_path) -> None:
+    with (
+        patch(
+            "ephemeral.ink_bridge.get_settings",
+            return_value=Settings(default_provider=LLMProvider.OPENAI),
+        ),
+        patch("ephemeral.config.CONFIG_DIR", tmp_path),
+        patch("ephemeral.config.CONFIG_FILE", tmp_path / "config.env"),
+    ):
+        try:
+            asyncio.run(
+                ink_bridge.handle_request({"action": "set-model", "model": "claude-sonnet-4-6"})
+            )
+        except ink_bridge.BridgeError as exc:
+            assert "belongs to anthropic" in str(exc)
+        else:  # pragma: no cover - defensive
+            raise AssertionError("Expected BridgeError for mismatched model provider")
 
 
 def test_help_payload_includes_slash_commands() -> None:
@@ -145,7 +214,11 @@ def test_export_payload_writes_markdown(tmp_path) -> None:
 
 def test_engine_payload_delegates_to_engine() -> None:
     with patch("ephemeral.ink_bridge.Engine") as engine_cls:
-        engine_cls.return_value.process_query = AsyncMock(return_value={"type": "result", "result": {"ok": True}})
-        result = asyncio.run(ink_bridge._engine_payload("report", {"query": "Generate a report for NVDA"}))
+        engine_cls.return_value.process_query = AsyncMock(
+            return_value={"type": "result", "result": {"ok": True}}
+        )
+        result = asyncio.run(
+            ink_bridge._engine_payload("report", {"query": "Generate a report for NVDA"})
+        )
     assert result["requested_action"] == "report"
     assert result["engine_result"]["result"]["ok"] is True

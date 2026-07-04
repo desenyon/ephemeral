@@ -237,11 +237,19 @@ def print_status_dashboard(
     detect_lean_installation,
 ) -> None:
     """Richer than a plain table: status + services."""
+    from ephemeral.config import LLMProvider, list_ollama_model_names, ollama_has_model
+
     ollama_up, ollama_host = detect_ollama()
     lean_ok, lean_cli, lean_dir = detect_lean_installation()
 
     prov = settings.default_provider
     pval = prov.value if hasattr(prov, "value") else str(prov)
+    installed_models = list_ollama_model_names(ollama_host) if ollama_up and ollama_host else []
+    current_model_available = (
+        ollama_has_model(ollama_host, settings.default_model)
+        if ollama_up and ollama_host and settings.default_model
+        else False
+    )
 
     top = Table.grid(padding=(0, 2))
     top.add_row(
@@ -259,6 +267,23 @@ def print_status_dashboard(
             style="ephemeral.ok" if ollama_up else "ephemeral.warn",
         ),
     )
+    if prov == LLMProvider.OLLAMA:
+        if current_model_available:
+            model_status = f"{settings.default_model} installed"
+            model_style = "ephemeral.ok"
+        elif installed_models:
+            model_status = (
+                f"{settings.default_model} not installed · installed: "
+                f"{', '.join(installed_models[:5])}"
+            )
+            model_style = "ephemeral.warn"
+        else:
+            model_status = f"{settings.default_model} not installed"
+            model_style = "ephemeral.warn"
+        top.add_row(
+            Text("Ollama model", style="ephemeral.dim"),
+            Text(model_status, style=model_style),
+        )
     lean_detail = []
     if lean_cli:
         lean_detail.append(f"cli: {lean_cli}")
@@ -292,6 +317,37 @@ def print_status_dashboard(
     keys.add_row("xAI", "[ephemeral.ok]set[/ephemeral.ok]" if settings.xai_api_key else "[ephemeral.err]—[/ephemeral.err]")
     keys.add_row("Polygon", "[ephemeral.ok]set[/ephemeral.ok]" if settings.polygon_api_key else "[ephemeral.err]—[/ephemeral.err]")
     console.print(keys)
+
+    if prov == LLMProvider.OLLAMA and ollama_up and not current_model_available:
+        if installed_models:
+            hint = (
+                f"Run [bold]ephemeral --model {installed_models[0]}[/bold] to use an installed model, "
+                f"or [bold]ollama pull {settings.default_model}[/bold]."
+            )
+        else:
+            hint = f"Run [bold]ollama pull {settings.default_model}[/bold] before using local LLM workflows."
+        console.print(
+            Panel(
+                f"[ephemeral.warn]Setup required:[/ephemeral.warn] {settings.default_model} is not installed locally.\n{hint}",
+                border_style="yellow",
+            )
+        )
+    elif prov != LLMProvider.OLLAMA and not settings.get_api_key(prov):
+        console.print(
+            Panel(
+                f"[ephemeral.warn]Setup required:[/ephemeral.warn] {pval} has no API key configured.\n"
+                f"Run [bold]ephemeral --setkey {pval} <key>[/bold].",
+                border_style="yellow",
+            )
+        )
+
+    if not lean_ok:
+        console.print(
+            Panel(
+                "[ephemeral.dim]Optional:[/ephemeral.dim] LEAN is not detected; QuantConnect workflows may be unavailable.",
+                border_style="ephemeral.muted",
+            )
+        )
 
 
 def format_tui_status_markdown(

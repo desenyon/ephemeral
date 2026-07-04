@@ -8,6 +8,7 @@ type KeyboardControllerProps = {
 	focusPane: FocusPane;
 	historyLength: number;
 	input: string;
+	onRefreshWorkspace?: () => void;
 	onRun: (currentInput: string) => void;
 	outputViewportHeight: number;
 	setDetailMode: React.Dispatch<React.SetStateAction<DetailMode>>;
@@ -24,6 +25,7 @@ export const KeyboardController = ({
 	focusPane,
 	historyLength,
 	input,
+	onRefreshWorkspace,
 	onRun,
 	outputViewportHeight,
 	setDetailMode,
@@ -72,6 +74,11 @@ export const KeyboardController = ({
 				return;
 			}
 			setFocusPane(previous => nextPane(previous));
+			return;
+		}
+
+		if (key.ctrl && value === 'r' && onRefreshWorkspace) {
+			onRefreshWorkspace();
 			return;
 		}
 

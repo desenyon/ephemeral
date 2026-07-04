@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-VERSION = "3.9.0"
-SHORT_VERSION = "3.9"
+VERSION = "4.0.0"
+SHORT_VERSION = "4.0"
 
 __all__ = ["VERSION", "SHORT_VERSION"]

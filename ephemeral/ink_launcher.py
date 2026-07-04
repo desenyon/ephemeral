@@ -57,6 +57,7 @@ def launch_ink_ui(extra_args: Iterable[str] | None = None) -> int:
     env["EPHEMERAL_PYTHON_EXECUTABLE"] = sys.executable
     env["EPHEMERAL_PACKAGE_ROOT"] = str(Path(__file__).resolve().parent)
     env["EPHEMERAL_PROJECT_ROOT"] = str(Path(__file__).resolve().parent.parent)
+    env["EPHEMERAL_VERSION"] = __import__("ephemeral.version", fromlist=["VERSION"]).VERSION
     env.setdefault("FORCE_COLOR", "1")
 
     return subprocess.call(cmd, env=env)

@@ -445,19 +445,19 @@ def generate_custom_algorithm(
 
     indicator_code = "\n".join(indicator_code_lines) if indicator_code_lines else "        pass  # No indicators"
 
-    # Build entry/exit logic (basic template)
+    # Build entry/exit logic for a LEAN starter template.
     entry_comment = "\n".join([f"        # Entry: {c}" for c in entry_conditions])
     exit_comment = "\n".join([f"        # Exit: {c}" for c in exit_conditions])
 
     logic_code = f'''        {entry_comment}
-        # TODO: Implement entry logic based on conditions above
+        # Starter template: translate the entry notes above into executable LEAN conditions.
 
         {exit_comment}
-        # TODO: Implement exit logic based on conditions above
+        # Starter template: translate the exit notes above into executable LEAN conditions.
 
         holdings = self.Portfolio[self.symbol].Quantity
 
-        # Example entry (customize based on your conditions)
+        # Baseline starter entry; replace once the condition notes are encoded.
         if not self.Portfolio[self.symbol].Invested:
             self.SetHoldings(self.symbol, 0.95)
             self.Debug(f"BUY at {{price}}")'''

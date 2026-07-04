@@ -1,4 +1,4 @@
-"""Ephemeral v3.9.0 - Finance Research Agent."""
+"""Ephemeral v4.0.0 - Finance Research Agent."""
 
 import asyncio
 import json

@@ -28,13 +28,29 @@ class TestVersion(unittest.TestCase):
         from ephemeral.cli import __version__ as cli_version
         from ephemeral.config import __version__ as config_version
         from ephemeral.setup import __version__ as setup_version
+        from ephemeral.version import VERSION
 
-        expected = "3.9.0"
+        expected = VERSION
         self.assertEqual(__version__, expected, "ephemeral/__init__.py version mismatch")
         self.assertEqual(app_version, expected, "ephemeral/app.py version mismatch")
         self.assertEqual(config_version, expected, "ephemeral/config.py version mismatch")
         self.assertEqual(cli_version, expected, "ephemeral/cli.py version mismatch")
         self.assertEqual(setup_version, expected, "ephemeral/setup.py version mismatch")
+
+    def test_release_version_is_not_hard_coded_in_launch_surfaces(self):
+        """Ink and release scripts should read the centralized version."""
+        root = Path(__file__).parent.parent
+        hard_coded_versions = ('3.8.0', '3.9.0')
+        checked_files = [
+            root / "ephemeral" / "ink_ui" / "src" / "constants.ts",
+            root / "scripts" / "build.sh",
+            root / "scripts" / "create_app.py",
+        ]
+
+        for path in checked_files:
+            contents = path.read_text()
+            for hard_coded_version in hard_coded_versions:
+                self.assertNotIn(hard_coded_version, contents, f"{path} hard-codes version {hard_coded_version}")
 
 
 class TestErrorCodes(unittest.TestCase):
@@ -346,10 +362,11 @@ class TestAppComponents(unittest.TestCase):
     def test_welcome_banner_updated(self):
         """Welcome banner should not contain 'Native macOS'."""
         from ephemeral.app import WELCOME_BANNER
+        from ephemeral.version import VERSION
 
         self.assertNotIn("Native macOS", WELCOME_BANNER)
         self.assertNotIn("native macOS", WELCOME_BANNER)
-        self.assertIn("3.9.0", WELCOME_BANNER)
+        self.assertIn(VERSION, WELCOME_BANNER)
 
     def test_suggestions_list(self):
         """SUGGESTIONS should have comprehensive entries."""
@@ -427,8 +444,9 @@ class TestImports(unittest.TestCase):
             launch,
             save_api_key,
         )
+        from ephemeral.version import VERSION
 
-        self.assertEqual(__version__, "3.9.0")
+        self.assertEqual(__version__, VERSION)
         self.assertTrue(callable(launch))
         self.assertTrue(callable(save_api_key))
 
@@ -498,7 +516,9 @@ def run_interactive_tests():
 if __name__ == "__main__":
     # Run unit tests
     print("=" * 60)
-    print("EPHEMERAL v3.9.0 - COMPREHENSIVE TEST SUITE")
+    from ephemeral.version import VERSION
+
+    print(f"EPHEMERAL v{VERSION} - COMPREHENSIVE TEST SUITE")
     print("=" * 60)
 
     # Create test suite
