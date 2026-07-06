@@ -27,7 +27,7 @@ export const RightRail = ({desk, focusPane, height, width}: Props) => {
 	const news = desk.workspace?.news ?? [];
 	const artifacts = desk.workspace?.artifacts ?? [];
 	const rows: React.ReactNode[] = [
-		<Text key="context-title" color={focusPane === 'workspace' ? 'magentaBright' : 'gray'} bold>
+		<Text key="context-title" color={focusPane === 'right' ? 'magentaBright' : 'gray'} bold>
 			CONTEXT
 		</Text>,
 		<Text key="symbol" color="cyanBright" bold>
