@@ -59,7 +59,7 @@ export const CommandDock = ({
 							{shortcut.description}
 						</React.Fragment>
 					))
-				: 'Tab to switch panes · focus input for shortcuts'}
+				: <><Text color="white" bold>Tab</Text> to switch panes · focus input for shortcuts</>}
 		</Text>
 	</Box>
 );
