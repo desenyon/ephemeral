@@ -8,3 +8,7 @@
 ## 2024-04-26 - [Interactive Pane State Hierarchy and Input Swallowing]
 **Learning:** Terminal interfaces with multiple interactive panes (like actions, history, output, and input) must explicitly scope single-character keyboard shortcuts to their intended active pane to prevent swallowing input intended for text inputs. Furthermore, users often lose context of which pane is active without clear visual hierarchy.
 **Action:** Always scope single-character shortcuts (e.g. `[`, `]`, `d`) to specific focus states (e.g., `focusPane === "output"`, `focusPane !== "input"`). Dim the text color of header titles for inactive panes (e.g., to `gray`) to create a clear visual hierarchy and direct attention to the active workspace.
+
+## 2024-05-15 - Consistent Keyboard Shortcut Styling for Static Text
+**Learning:** Even in static, non-rendered text fields (like an inactive shortcut hint), failing to wrap keyboard shortcut instructions (e.g., "Tab") in the application's standard highlighting pattern (`<Text color="white" bold>`) breaks visual consistency and makes the shortcut less discoverable.
+**Action:** When defining static fallback text or strings that reference keyboard keys, ensure they use the established component wrapping to maintain a unified visual hierarchy across both dynamic and static UI states.
