@@ -49,17 +49,15 @@ export const CommandDock = ({
 		</Text>
 		<Text color="gray">{selectedAction.description} · {selectedAction.hint}</Text>
 		<Text color="gray">
-			{focusPane === 'input'
-				? shortcuts.map((shortcut, index) => (
-						<React.Fragment key={`${shortcut.key}-${shortcut.description}`}>
-							{index > 0 ? ' · ' : null}
-							<Text color="white" bold>
-								{shortcut.key}
-							</Text>{' '}
-							{shortcut.description}
-						</React.Fragment>
-					))
-				: 'Tab to switch panes · focus input for shortcuts'}
+			{shortcuts.map((shortcut, index) => (
+				<React.Fragment key={`${shortcut.key}-${shortcut.description}`}>
+					{index > 0 ? ' · ' : null}
+					<Text color="white" bold>
+						{shortcut.key}
+					</Text>{' '}
+					{shortcut.description}
+				</React.Fragment>
+			))}
 		</Text>
 	</Box>
 );
