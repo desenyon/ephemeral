@@ -1,9 +1,10 @@
-"""CLI entry point for Ephemeral v4.0.0 — Rich UX layer over the TUI and one-shot commands."""
+"""CLI entry point for Ephemeral v4.1.0 — Rich UX layer over the TUI and one-shot commands."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import shutil
 import sys
 from typing import Optional
@@ -48,6 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
             "  ephemeral                         # Interactive CLI (Ink by default)\n"
             "  ephemeral --legacy-ui             # Launch the legacy Textual UI\n"
             "  ephemeral ask \"Summarize AAPL risk factors\"\n"
+            "  ephemeral strategize \"Momentum rotation into QQQ above its 50d average\"\n"
             "  ephemeral quote NVDA AMD\n"
             "  ephemeral chart SPY --period 1y -o /tmp/spy.png\n"
             "  ephemeral doctor                  # Health check\n"
@@ -72,11 +74,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--setkey",
         nargs=2,
         metavar=("PROVIDER", "KEY"),
-        help="Set API key (google, openai, anthropic, groq, xai, polygon, alphavantage, exa)",
+        help="Set API key (google, openai, anthropic, groq, xai, nim, polygon, alphavantage, exa)",
     )
     parser.add_argument(
         "--provider",
-        choices=["google", "openai", "anthropic", "groq", "xai", "ollama"],
+        choices=["google", "openai", "anthropic", "groq", "xai", "nim", "ollama"],
         help="Set default AI provider",
     )
     parser.add_argument(
@@ -113,6 +115,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
     ask_p = subparsers.add_parser("ask", help="Ask the LLM with tools (non-interactive)")
     ask_p.add_argument("query", nargs="+", help="Question / prompt")
+
+    strategize_p = subparsers.add_parser(
+        "strategize", help="Describe a strategy in English; the model writes and backtests it"
+    )
+    strategize_p.add_argument("description", nargs="+", help="Strategy description")
 
     quote_p = subparsers.add_parser("quote", help="Fetch stock quotes")
     quote_p.add_argument("symbols", nargs="+", help="Ticker symbols")
@@ -247,7 +254,7 @@ def main() -> int:
         provider = provider.lower()
         if not save_api_key(provider, key):
             console.print(f"[red]Error:[/red] Unknown provider '{provider}'")
-            console.print("[dim]Valid: google, openai, anthropic, groq, xai, polygon, alphavantage, exa[/dim]")
+            console.print("[dim]Valid: google, openai, anthropic, groq, xai, nim, polygon, alphavantage, exa[/dim]")
             return 1
         console.print(f"[bold cyan]E[/bold cyan] Saved credentials for [bold]{provider}[/bold].")
         return 0
@@ -270,6 +277,9 @@ def main() -> int:
 
     if args.command == "ask":
         return handle_ask(console, " ".join(args.query))
+
+    if args.command == "strategize":
+        return handle_strategize(console, " ".join(args.description))
 
     if args.command == "quote":
         return handle_quotes(console, args.symbols)
@@ -357,6 +367,24 @@ def handle_ask(console, query: str) -> int:
     except Exception as e:
         console.print(f"[red]Error:[/red] {e}")
         return 1
+
+
+def handle_strategize(console, description: str) -> int:
+    from ephemeral.ink_bridge import _strategize_payload
+
+    with console.status("[bold blue]Designing and backtesting strategy…[/bold blue]"):
+        try:
+            data = asyncio.run(_strategize_payload({"query": description}))
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
+            return 1
+
+    console.print(Panel(Markdown(str(data["response"])), title="[bold cyan]Strategize[/bold cyan]", border_style="cyan"))
+    if data.get("backtest_result"):
+        console.print(Panel(Markdown(f"```json\n{json.dumps(data['backtest_result'], indent=2, default=str)}\n```"), title="Backtest result", border_style="dim"))
+    if data.get("chart_path"):
+        console.print(f"\n[bold cyan]E[/bold cyan] Chart written to: [bold]{data['chart_path']}[/bold]")
+    return 0
 
 
 def handle_quotes(console, symbols: list) -> int:

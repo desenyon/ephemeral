@@ -191,6 +191,7 @@ def run_doctor(console: Console, settings: "Settings") -> int:
         ("Anthropic", settings.anthropic_api_key),
         ("Groq", settings.groq_api_key),
         ("xAI", settings.xai_api_key),
+        ("NIM", settings.nim_api_key),
         ("Polygon", settings.polygon_api_key),
         ("Alpha Vantage", settings.alpha_vantage_api_key),
         ("Exa", settings.exa_api_key),
@@ -315,6 +316,7 @@ def print_status_dashboard(
     keys.add_row("Anthropic", "[ephemeral.ok]set[/ephemeral.ok]" if settings.anthropic_api_key else "[ephemeral.err]—[/ephemeral.err]")
     keys.add_row("Groq", "[ephemeral.ok]set[/ephemeral.ok]" if settings.groq_api_key else "[ephemeral.err]—[/ephemeral.err]")
     keys.add_row("xAI", "[ephemeral.ok]set[/ephemeral.ok]" if settings.xai_api_key else "[ephemeral.err]—[/ephemeral.err]")
+    keys.add_row("NIM", "[ephemeral.ok]set[/ephemeral.ok]" if settings.nim_api_key else "[ephemeral.err]—[/ephemeral.err]")
     keys.add_row("Polygon", "[ephemeral.ok]set[/ephemeral.ok]" if settings.polygon_api_key else "[ephemeral.err]—[/ephemeral.err]")
     console.print(keys)
 
@@ -394,6 +396,7 @@ def format_tui_status_markdown(
         ("Anthropic", settings.anthropic_api_key),
         ("Groq", settings.groq_api_key),
         ("xAI", settings.xai_api_key),
+        ("NIM", getattr(settings, "nim_api_key", None)),
         ("Polygon", getattr(settings, "polygon_api_key", None)),
         ("Alpha Vantage", getattr(settings, "alpha_vantage_api_key", None)),
         ("Exa", getattr(settings, "exa_api_key", None)),

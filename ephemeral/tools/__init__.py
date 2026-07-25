@@ -1,5 +1,6 @@
 import ephemeral.tools.alpha_vantage  # noqa: F401
 import ephemeral.tools.backtest  # noqa: F401
+import ephemeral.tools.custom_backtest  # noqa: F401
 import ephemeral.tools.exa_search  # noqa: F401
 import ephemeral.tools.local_backtest  # noqa: F401
 import ephemeral.tools.polygon  # noqa: F401

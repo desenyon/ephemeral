@@ -11,7 +11,14 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from .config import detect_ollama, get_settings, mark_first_run_complete, save_api_key, save_setting
+from .config import (
+    detect_ollama,
+    get_settings,
+    key_storage_backend,
+    mark_first_run_complete,
+    save_api_key,
+    save_setting,
+)
 from .version import VERSION
 
 console = Console()
@@ -306,12 +313,15 @@ class SetupAgent:
 
     def configure_api_keys(self):
         console.print("\n[bold cyan]4. API Key Verification[/bold cyan]")
+        console.print(f"  [dim]Vault: {key_storage_backend()}[/dim]")
 
         providers = [
             ("OpenAI", "openai_api_key", "openai"),
             ("Anthropic", "anthropic_api_key", "anthropic"),
             ("Google Gemini", "google_api_key", "google"),
             ("Groq", "groq_api_key", "groq"),
+            ("xAI", "xai_api_key", "xai"),
+            ("NVIDIA NIM", "nim_api_key", "nim"),
             ("Alpha Vantage", "alpha_vantage_api_key", "alpha_vantage"),
             ("Exa Search", "exa_api_key", "exa"),
             ("Polygon.io", "polygon_api_key", "polygon"),
@@ -386,6 +396,14 @@ class SetupAgent:
                     if r.status_code != 200:
                         raise Exception("Invalid Key")
                     pass
+                elif provider == "xai":
+                    from openai import OpenAI
+                    client = OpenAI(api_key=key, base_url="https://api.x.ai/v1")
+                    client.models.list()
+                elif provider == "nim":
+                    from openai import OpenAI
+                    client = OpenAI(api_key=key, base_url="https://integrate.api.nvidia.com/v1")
+                    client.models.list()
 
                 # If we didn't crash, assume OK (or skip if we can't easily verify without cost)
                 return True

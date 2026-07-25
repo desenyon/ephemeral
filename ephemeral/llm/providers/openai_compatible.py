@@ -31,3 +31,16 @@ class XaiProvider(OpenAIProvider):
             rate_limiter,
             base_url=base_url or "https://api.x.ai/v1",
         )
+
+
+class NimProvider(OpenAIProvider):
+    """NVIDIA NIM (build.nvidia.com) via OpenAI-compatible endpoint — BYOK, incl. free-tier models."""
+
+    provider_name = "nim"
+
+    def __init__(self, api_key: str, rate_limiter=None, base_url: Optional[str] = None):
+        super().__init__(
+            api_key,
+            rate_limiter,
+            base_url=base_url or "https://integrate.api.nvidia.com/v1",
+        )

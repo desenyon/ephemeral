@@ -583,6 +583,8 @@ class AutocompleteEngine:
         "/digest",
         "/setup-help",
         "/reload",
+        "/race",
+        "/strategize",
     ]
 
     # Common phrases

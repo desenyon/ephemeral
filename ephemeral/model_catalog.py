@@ -49,6 +49,12 @@ MODEL_CATALOG: Tuple[ModelCatalogEntry, ...] = (
     ModelCatalogEntry("groq", "mixtral-8x7b-32768", ("tools", "json"), 32_768, "low"),
     ModelCatalogEntry("xai", "grok-4", ("tools", "json"), 256_000, "high"),
     ModelCatalogEntry("xai", "grok-4-mini", ("tools", "json"), 128_000, "low"),
+    ModelCatalogEntry(
+        "nim", "nvidia/llama-3.1-nemotron-70b-instruct", ("tools", "json", "reasoning"), 128_000, "free"
+    ),
+    ModelCatalogEntry("nim", "meta/llama-3.3-70b-instruct", ("tools", "json"), 128_000, "free"),
+    ModelCatalogEntry("nim", "mistralai/mixtral-8x22b-instruct-v0.1", ("tools", "json"), 64_000, "free"),
+    ModelCatalogEntry("nim", "deepseek-ai/deepseek-r1", ("reasoning", "tools"), 128_000, "free"),
     ModelCatalogEntry("ollama", "qwen3.5:8b", ("tools",), 128_000, "free"),
     ModelCatalogEntry("ollama", "qwen3.5:4b", ("tools",), 64_000, "free"),
     ModelCatalogEntry("ollama", "qwen2.5:1.5b", ("tools",), 32_768, "free"),

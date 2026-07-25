@@ -1,0 +1,9 @@
+{
+  "name": "ephemeral-pi-extensions",
+  "private": true,
+  "type": "module",
+  "description": "Dependencies for Ephemeral's project-local Pi harness extensions (.pi/extensions).",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0"
+  }
+}

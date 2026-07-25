@@ -1,6 +1,7 @@
-"""Configuration management for Ephemeral v4.0.0."""
+"""Configuration management for Ephemeral v4.1.0."""
 
 import json
+import os
 import shutil
 import subprocess
 from enum import Enum, IntEnum
@@ -11,12 +12,27 @@ from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from ephemeral import secure_store
 from ephemeral.model_catalog import available_models_by_provider
 
 from .version import VERSION
 
 # Load environment variables from .env file immediately
 load_dotenv()
+
+# Every env var name that may hold a BYOK secret — the keychain vault and the
+# plaintext-file fallback both key off this list.
+API_KEY_ENV_NAMES: List[str] = [
+    "GOOGLE_API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GROQ_API_KEY",
+    "XAI_API_KEY",
+    "NIM_API_KEY",
+    "POLYGON_API_KEY",
+    "ALPHA_VANTAGE_API_KEY",
+    "EXA_API_KEY",
+]
 
 
 __version__ = VERSION
@@ -80,6 +96,7 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     GROQ = "groq"
     XAI = "xai"
+    NIM = "nim"
     OLLAMA = "ollama"
 
 
@@ -106,19 +123,28 @@ def is_first_run() -> bool:
     if FIRST_RUN_MARKER.exists():
         return False
 
+    llm_api_keys = [
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "GROQ_API_KEY",
+        "XAI_API_KEY",
+        "NIM_API_KEY",
+    ]
+
+    # Check the keychain vault first — a key stored there but never written to
+    # the plaintext file should still count as "already configured".
+    for key in llm_api_keys:
+        if secure_store.get_secret(key):
+            mark_first_run_complete()
+            return False
+
     # Check if config file exists and has API keys
     if CONFIG_FILE.exists():
         try:
             content = CONFIG_FILE.read_text()
             # Check if any API key is set (not empty)
-            api_keys = [
-                "GOOGLE_API_KEY",
-                "OPENAI_API_KEY",
-                "ANTHROPIC_API_KEY",
-                "GROQ_API_KEY",
-                "XAI_API_KEY",
-            ]
-            for key in api_keys:
+            for key in llm_api_keys:
                 # Look for KEY=value where value is not empty
                 for line in content.splitlines():
                     if line.startswith(f"{key}="):
@@ -375,6 +401,7 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     groq_api_key: Optional[str] = Field(default=None, alias="GROQ_API_KEY")
     xai_api_key: Optional[str] = Field(default=None, alias="XAI_API_KEY")
+    nim_api_key: Optional[str] = Field(default=None, alias="NIM_API_KEY")
 
     # Model settings - REAL API NAMES (Feb 2026)
     google_model: str = "gemini-3.1-pro"
@@ -382,6 +409,7 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-4-6"
     groq_model: str = "llama-3.3-70b-versatile"
     xai_model: str = "grok-4"
+    nim_model: str = "nvidia/llama-3.1-nemotron-70b-instruct"
     ollama_model: str = "qwen3.5:8b"
 
     # Ollama settings
@@ -414,6 +442,7 @@ class Settings(BaseSettings):
             LLMProvider.ANTHROPIC: self.anthropic_api_key,
             LLMProvider.GROQ: self.groq_api_key,
             LLMProvider.XAI: self.xai_api_key,
+            LLMProvider.NIM: self.nim_api_key,
             LLMProvider.OLLAMA: None,  # No key needed
         }
         return key_map.get(provider)
@@ -426,6 +455,7 @@ class Settings(BaseSettings):
             LLMProvider.ANTHROPIC: self.anthropic_model,
             LLMProvider.GROQ: self.groq_model,
             LLMProvider.XAI: self.xai_model,
+            LLMProvider.NIM: self.nim_model,
             LLMProvider.OLLAMA: self.ollama_model,
         }
         return model_map.get(provider, "")
@@ -449,6 +479,10 @@ def get_settings() -> Settings:
     """Get application settings."""
     # Ensure config directory exists
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Pull any keychain-backed secrets into the environment so Settings' normal
+    # env/.env resolution picks them up transparently.
+    secure_store.hydrate_environment(API_KEY_ENV_NAMES)
 
     # Load from environment and config file
     return Settings()
@@ -479,6 +513,7 @@ def save_api_key(provider: str, key: str) -> bool:
         "anthropic": "ANTHROPIC_API_KEY",
         "groq": "GROQ_API_KEY",
         "xai": "XAI_API_KEY",
+        "nim": "NIM_API_KEY",
         # Data providers
         "polygon": "POLYGON_API_KEY",
         "alphavantage": "ALPHA_VANTAGE_API_KEY",
@@ -490,7 +525,13 @@ def save_api_key(provider: str, key: str) -> bool:
     if not env_key:
         return False
 
-    config[env_key] = key
+    # Prefer the OS keychain. On success, scrub any plaintext copy from the
+    # config file so the secret lives in exactly one place.
+    if secure_store.set_secret(env_key, key):
+        os.environ[env_key] = key
+        config.pop(env_key, None)
+    else:
+        config[env_key] = key
 
     # Write back
     try:
@@ -505,6 +546,7 @@ def save_api_key(provider: str, key: str) -> bool:
                 "ANTHROPIC_API_KEY",
                 "GROQ_API_KEY",
                 "XAI_API_KEY",
+                "NIM_API_KEY",
             ]
             data_keys = ["POLYGON_API_KEY", "ALPHA_VANTAGE_API_KEY", "EXA_API_KEY"]
 
@@ -525,6 +567,11 @@ def save_api_key(provider: str, key: str) -> bool:
         return True
     except IOError:
         return False
+
+
+def key_storage_backend() -> str:
+    """Human-readable label for the active BYOK secret storage backend."""
+    return secure_store.backend_label()
 
 
 def get_api_key(provider: str) -> Optional[str]:

@@ -5,7 +5,7 @@ from .providers.anthropic_provider import AnthropicProvider
 from .providers.base import BaseLLM
 from .providers.google_provider import GoogleProvider
 from .providers.ollama_provider import OllamaProvider
-from .providers.openai_compatible import GroqProvider, XaiProvider
+from .providers.openai_compatible import GroqProvider, NimProvider, XaiProvider
 from .providers.openai_provider import OpenAIProvider
 from .rate_limit import RateLimiter
 from .registry import REGISTRY
@@ -53,6 +53,13 @@ class LLMRouter:
             self.providers["xai"] = XaiProvider(
                 api_key=self.settings.xai_api_key,
                 rate_limiter=RateLimiter(30, 0.5),
+            )
+
+        # NVIDIA NIM (OpenAI-compatible) — BYOK, includes free-tier hosted OSS models
+        if getattr(self.settings, "nim_api_key", None):
+            self.providers["nim"] = NimProvider(
+                api_key=self.settings.nim_api_key,
+                rate_limiter=RateLimiter(40, 0.5),
             )
 
         # Ollama (always available usually)

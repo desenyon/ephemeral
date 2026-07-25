@@ -18,6 +18,7 @@ from ephemeral.config import (
     detect_lean_installation,
     detect_ollama,
     get_settings,
+    key_storage_backend,
     list_ollama_model_names,
     needs_llm_setup,
     ollama_has_model,
@@ -258,6 +259,7 @@ def _keys_payload() -> Dict[str, Any]:
         {"provider": "anthropic", "status": _mask_secret(settings.anthropic_api_key)},
         {"provider": "groq", "status": _mask_secret(settings.groq_api_key)},
         {"provider": "xai", "status": _mask_secret(settings.xai_api_key)},
+        {"provider": "nim", "status": _mask_secret(settings.nim_api_key)},
         {"provider": "polygon", "status": _mask_secret(settings.polygon_api_key)},
         {"provider": "alphavantage", "status": _mask_secret(settings.alpha_vantage_api_key)},
         {"provider": "exa", "status": _mask_secret(settings.exa_api_key)},
@@ -266,6 +268,7 @@ def _keys_payload() -> Dict[str, Any]:
         "title": "API Keys",
         "rows": rows,
         "configured": sum(1 for row in rows if row["status"] != "missing"),
+        "vault_backend": key_storage_backend(),
     }
 
 
@@ -345,6 +348,203 @@ async def _ask_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "provider": settings.default_provider.value,
         "model": settings.default_model,
     }
+
+
+STRATEGIZE_NUDGE = (
+    "\n\n---\n"
+    "**Workflow:** Design a concrete, testable trading strategy for this request, then: "
+    "(1) call `write_strategy` with a short snake_case name and Python code defining "
+    "`generate_signals(hist, **params)`, (2) call `run_custom_backtest` with that name "
+    "and a relevant symbol/period, (3) summarize the resulting performance, risk, and the "
+    "chart_path in your final answer."
+)
+
+
+async def _strategize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from ephemeral.app import SYSTEM_PROMPT
+    from ephemeral.llm import get_router
+    from ephemeral.llm.tool_guidance import build_augmented_system_prompt
+    from ephemeral.tools import execute_tool, get_tools_for_llm
+    from ephemeral.tools.registry import TOOL_REGISTRY
+
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        raise BridgeError("`strategize` requires a non-empty strategy description.")
+
+    settings = get_settings()
+    router = get_router(settings, force=True)
+    tool_calls: List[Dict[str, Any]] = []
+
+    async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        result = execute_tool(name, args)
+        tool_calls.append({"name": name, "args": args, "result": result})
+        return result
+
+    messages = [
+        {
+            "role": "system",
+            "content": build_augmented_system_prompt(SYSTEM_PROMPT, TOOL_REGISTRY),
+        },
+        {"role": "user", "content": query + STRATEGIZE_NUDGE},
+    ]
+    response = await router.chat(
+        messages,
+        tools=get_tools_for_llm(),
+        on_tool_call=handle_tool,
+        stream=False,
+    )
+
+    chart_path = None
+    backtest_result = None
+    for call in tool_calls:
+        if call["name"] == "run_custom_backtest" and isinstance(call["result"], dict):
+            backtest_result = call["result"]
+            chart_path = call["result"].get("chart_path")
+
+    return {
+        "query": query,
+        "response": str(response),
+        "tool_calls": tool_calls,
+        "backtest_result": backtest_result,
+        "chart_path": chart_path,
+        "provider": settings.default_provider.value,
+        "model": settings.default_model,
+    }
+
+
+async def _race_native(query: str) -> Dict[str, Any]:
+    from ephemeral.app import SYSTEM_PROMPT
+    from ephemeral.llm import get_router
+    from ephemeral.llm.tool_guidance import USER_TOOL_NUDGE, build_augmented_system_prompt
+    from ephemeral.tools import execute_tool, get_tools_for_llm
+    from ephemeral.tools.registry import TOOL_REGISTRY
+
+    settings = get_settings()
+    router = get_router(settings, force=True)
+    steps: List[Dict[str, Any]] = []
+
+    async def handle_tool(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+        result = execute_tool(name, args)
+        steps.append({"type": "tool_call", "tool": name, "arguments": args})
+        return result
+
+    user_text = query + USER_TOOL_NUDGE if settings.ephemeral_aggressive_tools else query
+    messages = [
+        {
+            "role": "system",
+            "content": build_augmented_system_prompt(SYSTEM_PROMPT, TOOL_REGISTRY),
+        },
+        {"role": "user", "content": user_text},
+    ]
+    response = await router.chat(
+        messages,
+        tools=get_tools_for_llm(),
+        on_tool_call=handle_tool,
+        stream=False,
+    )
+    return {
+        "backend": "native",
+        "provider": settings.default_provider.value,
+        "model": settings.default_model,
+        "response": str(response),
+        "steps": steps,
+        "error": None,
+    }
+
+
+async def _race_pi(query: str) -> Dict[str, Any]:
+    from ephemeral.agents.pi_harness import PiHarnessError, pi_available, run_pi_turn
+
+    if not pi_available():
+        return {
+            "backend": "pi",
+            "provider": None,
+            "model": None,
+            "response": "",
+            "steps": [],
+            "error": "Pi CLI not installed (npm i -g @earendil-works/pi-coding-agent).",
+        }
+    settings = get_settings()
+    try:
+        result = await run_pi_turn(
+            query,
+            provider="google" if settings.google_api_key else None,
+            model="gemini-3-flash" if settings.google_api_key else None,
+            api_key=settings.google_api_key,
+        )
+    except PiHarnessError as exc:
+        return {
+            "backend": "pi",
+            "provider": None,
+            "model": None,
+            "response": "",
+            "steps": [],
+            "error": str(exc),
+        }
+    return result
+
+
+async def _race_codex(query: str) -> Dict[str, Any]:
+    from ephemeral.agents.codex_agent import CodexHarnessError, codex_available, run_codex_turn
+
+    if not codex_available():
+        return {
+            "backend": "codex",
+            "provider": "openai",
+            "model": None,
+            "response": "",
+            "steps": [],
+            "error": "Codex CLI not installed (npm i -g @openai/codex).",
+        }
+    try:
+        result = await run_codex_turn(query)
+    except CodexHarnessError as exc:
+        return {
+            "backend": "codex",
+            "provider": "openai",
+            "model": None,
+            "response": "",
+            "steps": [],
+            "error": str(exc),
+        }
+    return result
+
+
+async def _race_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Fire one query at the native provider, Pi, and Codex concurrently.
+
+    The multi-agent "race" is Ephemeral's headline demo of being harness- and
+    provider-agnostic: the same research question, answered simultaneously through
+    three independent backends, side by side.
+    """
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        raise BridgeError("`race` requires a non-empty query.")
+
+    backends = [
+        ("native", _race_native(query)),
+        ("pi", _race_pi(query)),
+        ("codex", _race_codex(query)),
+    ]
+
+    async def _timed(name: str, coro) -> Dict[str, Any]:
+        start = time.monotonic()
+        try:
+            result = await coro
+        except Exception as exc:  # noqa: BLE001 - one backend's failure shouldn't sink the race
+            result = {
+                "backend": name,
+                "provider": None,
+                "model": None,
+                "response": "",
+                "steps": [],
+                "error": str(exc),
+            }
+        result["duration_ms"] = round((time.monotonic() - start) * 1000, 1)
+        return result
+
+    results = await asyncio.gather(*[_timed(name, coro) for name, coro in backends])
+    return {"query": query, "results": list(results)}
 
 
 def _quote_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -538,6 +738,10 @@ async def handle_request(payload: Dict[str, Any]) -> Dict[str, Any]:
         data = _cached_payload("doctor", _doctor_payload)
     elif action == "ask":
         data = await _ask_payload(payload)
+    elif action == "race":
+        data = await _race_payload(payload)
+    elif action == "strategize":
+        data = await _strategize_payload(payload)
     elif action == "quote":
         data = _quote_payload(payload)
     elif action == "news":

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ephemeral-terminal"
-version = "4.0.0"
+version = "4.1.0"
 description = "Ephemeral - Finance Research Agent"
 readme = "README.md"
 license = {text = "Proprietary"}
@@ -56,6 +56,8 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.1.0",
+    "keyring>=25.0.0",
+    "mcp>=1.6.0",
     
     # macOS Native
     "pyobjc-framework-Cocoa>=10.0;sys_platform=='darwin'",

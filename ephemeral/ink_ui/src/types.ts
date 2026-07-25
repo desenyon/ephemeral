@@ -5,6 +5,8 @@ export type ActionId =
 	| 'shortcuts'
 	| 'keys'
 	| 'ask'
+	| 'race'
+	| 'strategize'
 	| 'quote'
 	| 'news'
 	| 'compare'

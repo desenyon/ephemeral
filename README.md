@@ -6,7 +6,7 @@
 
 ### A terminal-native research desk for markets, models, and decision loops.
 
-[![Version](https://img.shields.io/badge/version-4.0.0-ff9f0a?style=for-the-badge&logo=python&logoColor=white)](./ephemeral/version.py)
+[![Version](https://img.shields.io/badge/version-4.1.0-ff9f0a?style=for-the-badge&logo=python&logoColor=white)](./ephemeral/version.py)
 [![Interface](https://img.shields.io/badge/interface-Ink%206%20Research%20Desk-0a0a0a?style=for-the-badge)](https://github.com/vadimdemedes/ink)
 [![Python](https://img.shields.io/badge/python-3.11+-111827?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-required-12f7a6?style=for-the-badge&logo=nodedotjs&logoColor=0a0a0a)](https://nodejs.org/)
@@ -20,7 +20,7 @@ Ephemeral turns a terminal into a professional research workstation: live symbol
 ## The Desk
 
 ```text
- EPHEMERAL RESEARCH DESK SPY v4.0.0                        LIVE · ready
+ EPHEMERAL RESEARCH DESK SPY v4.1.0                        LIVE · ready
  Research / Ask / Research · Ask · local ready              workspace ready
  ┌────────────────────┐ ┌────────────────────────────────────┐ ┌────────────────────┐
  │ WATCHLIST          │ │ ASK                     workspace  │ │ CONTEXT            │
@@ -56,7 +56,9 @@ Most finance tools split attention across dashboards, notebooks, terminals, brow
 
 - Ask for thesis work, catalysts, and risk checks.
 - Pull quotes, headlines, comparisons, charts, and backtests.
-- Route through local or cloud LLM providers.
+- Route through local or cloud LLM providers — OpenAI, Anthropic, Google, Groq, xAI, NIM, or Ollama — with BYOK keys stored in your OS keychain.
+- Race the same question across the native router, the [Pi](https://pi.dev) coding-agent harness, and OpenAI Codex CLI, side by side.
+- Describe a trading strategy in English and get it written, backtested, and charted in one turn.
 - Keep provider setup, local-model state, and dependency health visible.
 - Export charts, reports, and session artifacts under `~/.ephemeral/`.
 
@@ -73,7 +75,7 @@ curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/ins
 Pin a release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v4.0.0 bash
+curl -fsSL https://raw.githubusercontent.com/desenyon/ephemeral/main/scripts/install.sh | EPHEMERAL_REF=v4.1.0 bash
 ```
 
 Requirements:
@@ -132,6 +134,7 @@ ephemeral
 | Command | Result |
 | :--- | :--- |
 | `ephemeral ask "What changed in AAPL's thesis?"` | Run a tool-aware LLM request. |
+| `ephemeral strategize "Momentum rotation into QQQ above its 50d average"` | Describe a strategy in English; the model writes, backtests, and charts it. |
 | `ephemeral quote AAPL MSFT NVDA` | Fetch quote snapshots. |
 | `ephemeral news NVDA -n 12` | Produce a headline digest. |
 | `ephemeral compare META GOOGL AMZN` | Compare returns, volatility, and quality metrics. |
@@ -139,6 +142,8 @@ ephemeral
 | `ephemeral backtest AAPL -s sma_crossover --period 2y` | Run the built-in backtest engine. |
 | `ephemeral doctor` | Run dependency and environment checks. |
 | `ephemeral tools` | List registered model tools. |
+
+In the Research Desk, `/race` fires one question at the native provider, [Pi](https://pi.dev), and OpenAI Codex CLI simultaneously and shows all three answers side by side.
 
 ### Configuration
 
@@ -170,15 +175,20 @@ ephemeral
 
 ## Provider Setup
 
-Cloud keys:
+Cloud keys (BYOK — bring your own key):
 
 ```bash
 ephemeral --setkey openai <your-key>
 ephemeral --setkey anthropic <your-key>
 ephemeral --setkey google <your-key>
+ephemeral --setkey nim <your-key>
 ephemeral --provider openai
 ephemeral --model gpt-5.4
 ```
+
+Keys are stored in your OS keychain (macOS Keychain / Windows Credential Manager / Linux Secret Service) when one is available, falling back to `~/.ephemeral/config.env` otherwise — never sent anywhere but the provider you configured.
+
+NVIDIA NIM (`nim`) is an OpenAI-compatible endpoint with hosted OSS models (Llama, Mixtral, DeepSeek), including free-tier options — get a key at [build.nvidia.com](https://build.nvidia.com).
 
 Local Ollama:
 
@@ -192,6 +202,18 @@ ephemeral --status
 
 The Research Desk surfaces setup blockers in the context rail, so missing keys, unreachable Ollama, and unavailable local models are visible while you work.
 
+### Alternate harnesses (optional)
+
+`/race` and the Codex leg of any harness comparison need these installed separately — Ephemeral detects and reports each as unavailable rather than failing if you skip them:
+
+```bash
+npm i -g @earendil-works/pi-coding-agent   # Pi coding-agent harness
+npm i -g @openai/codex                     # OpenAI Codex CLI
+codex mcp add ephemeral -- <path-to-venv>/bin/python -m ephemeral.mcp_server
+```
+
+The `codex mcp add` step is a one-time, explicit registration of Ephemeral's tool server with Codex (writes to `~/.codex/config.toml`); Pi's project-local extension in `.pi/extensions/` is auto-discovered with no setup.
+
 ---
 
 ## Architecture
@@ -204,6 +226,12 @@ flowchart LR
   Bridge --> Health["Setup and health"]
   Bridge --> Market["Market data services"]
   Bridge --> Tools["Tool registry"]
+  Bridge --> Router["Native LLM router"]
+  Bridge --> Pi["Pi harness agent"]
+  Bridge --> Codex["Codex CLI agent"]
+  Tools --> MCP["MCP server"]
+  Pi --> MCP
+  Codex --> MCP
   Engine --> Artifacts["Reports, charts, exports"]
   Market --> Cache["TTL cache under ~/.ephemeral"]
 ```
@@ -215,9 +243,12 @@ flowchart LR
 | `ephemeral/research/workspace.py` | Failure-tolerant workspace snapshots for desk panels. |
 | `ephemeral/cli.py` | CLI entry point and launcher orchestration. |
 | `ephemeral/setup_agent.py` | Provider, key, and local-model onboarding. |
-| `ephemeral/llm` | Router and provider implementations. |
+| `ephemeral/secure_store.py` | OS-keychain-backed BYOK secret storage, with plaintext fallback. |
+| `ephemeral/llm` | Router and provider implementations (OpenAI, Anthropic, Google, Groq, xAI, NIM, Ollama). |
+| `ephemeral/mcp_server.py` | Exposes the tool registry over MCP for external agent harnesses. |
+| `ephemeral/agents` | Pi and Codex CLI harness backends. |
 | `ephemeral/tools` | Model-callable research tools. |
-| `ephemeral/backtest` | Built-in backtesting workflows. |
+| `ephemeral/backtest` | Built-in backtesting workflows plus the custom-strategy loader. |
 
 ---
 
@@ -234,7 +265,7 @@ Current Research Desk branch verification:
 
 | Gate | Status |
 | :--- | :--- |
-| Python tests | `1003 passed, 1 deselected` |
+| Python tests | `1010 passed, 1 deselected` |
 | Ink typecheck | passing |
 | Ink smoke render | passing |
 | Ruff | passing |

@@ -2,6 +2,28 @@
 
 All notable changes to Ephemeral are recorded here.
 
+## 4.1.0
+
+Released: 2026-07-25
+
+### Providers and keys
+
+- Added NVIDIA NIM as a provider (`nim`), an OpenAI-compatible endpoint alongside Groq and xAI, with bundled free-tier hosted models in the model catalog.
+- BYOK key storage now prefers the OS keychain (macOS Keychain / Windows Credential Manager / Linux Secret Service via `keyring`), falling back to the existing plaintext `~/.ephemeral/config.env` when no keychain backend is available. Existing plaintext keys keep working; new/updated keys migrate to the keychain automatically.
+- The setup wizard now covers every provider, including xAI (previously missing from the wizard) and NIM.
+
+### Multi-harness backends
+
+- Added an MCP server (`ephemeral/mcp_server.py`) exposing Ephemeral's full tool registry (quote, news, compare, chart, backtest, ...) over the Model Context Protocol, so external agent runtimes can call Ephemeral's real research tools instead of reimplementing them.
+- Added a [Pi](https://pi.dev) coding-agent harness backend (`ephemeral/agents/pi_harness.py`) with a project-local MCP-client extension (`.pi/extensions/ephemeral-tools.ts`), letting a turn run through Pi's own agent loop with Ephemeral's tools wired in.
+- Added an OpenAI Codex CLI backend (`ephemeral/agents/codex_agent.py`) for delegating turns to Codex's non-interactive `exec` mode.
+- Added `/race`: fires one question at the native provider, Pi, and Codex simultaneously and shows all three answers side by side with timing and tool-call counts.
+
+### Strategy authoring
+
+- Added `/strategize` (and `ephemeral strategize "<description>"`): describe a strategy in English and the model writes it (`write_strategy`), backtests it (`run_custom_backtest`) against live data, and returns a performance/risk summary plus an equity-curve chart artifact — a full closed loop in one turn.
+- Custom strategies are saved under `~/.ephemeral/custom_strategies/` and reuse the same simulation and metrics engine as the built-in strategies.
+
 ## 4.0.0
 
 Released: 2026-07-04

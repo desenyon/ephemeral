@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "ink": "^6.0.0",
-    "react": "^19.0.0"
+    "react": "^19.0.0",
+    "@earendil-works/pi-coding-agent": "^0.82.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -58,6 +58,8 @@ class ModelRegistry:
             return "xai"
         if model_id.startswith("mixtral-"):
             return "groq"
+        if model_id.startswith(("nvidia/", "meta/", "mistralai/", "deepseek-ai/")):
+            return "nim"
         return "ollama"
 
     def list_models(self) -> List[ModelInfo]:

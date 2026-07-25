@@ -10,6 +10,14 @@ export const actions: ActionDefinition[] = [
 		group: 'Research',
 	},
 	{
+		id: 'race',
+		label: 'Race',
+		description: 'Native, Pi, and Codex side by side',
+		hint: 'Fire one question at three backends at once and compare answers.',
+		promptPlaceholder: 'What changed in NVDA thesis after the latest guide?',
+		group: 'Research',
+	},
+	{
 		id: 'quote',
 		label: 'Quote',
 		description: 'Live quote snapshots',
@@ -48,6 +56,14 @@ export const actions: ActionDefinition[] = [
 		hint: 'Ticker, strategy, period. Example: `AAPL sma_crossover 2y`.',
 		promptPlaceholder: 'IWM breakout 3y',
 		group: 'Research',
+	},
+	{
+		id: 'strategize',
+		label: 'Strategize',
+		description: 'Describe a strategy, get it coded and backtested',
+		hint: 'Describe an idea in English; the model writes and backtests it, chart included.',
+		promptPlaceholder: 'A momentum strategy that rotates into QQQ above its 50-day average',
+		group: 'Build',
 	},
 	{
 		id: 'portfolio',
@@ -201,6 +217,10 @@ export const parseSlashCommand = (raw: string): BridgeRequest | null => {
 			return {action: 'keys'};
 		case 'ask':
 			return {action: 'ask', query: joined};
+		case 'race':
+			return {action: 'race', query: joined};
+		case 'strategize':
+			return {action: 'strategize', query: joined};
 		case 'quote':
 			return {action: 'quote', symbols: rest};
 		case 'news':
@@ -281,6 +301,10 @@ export const requestForAction = (
 			return {action: selectedAction.id};
 		case 'ask':
 			return {action: 'ask', query: input};
+		case 'race':
+			return {action: 'race', query: input};
+		case 'strategize':
+			return {action: 'strategize', query: input};
 		case 'quote':
 			return {action: 'quote', symbols: input.split(/[,\s]+/).filter(Boolean)};
 		case 'news': {

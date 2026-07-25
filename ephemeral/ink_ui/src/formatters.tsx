@@ -257,12 +257,24 @@ const renderToolCalls = (toolCalls: any[]) => {
 	].join('\n');
 };
 
+const RACE_BACKEND_LABELS: Record<string, string> = {
+	native: 'Native',
+	pi: 'Pi',
+	codex: 'Codex',
+};
+
 export const summarizeEnvelope = (result: BridgeEnvelope): string => {
 	const action = result.action;
 	const payload = result.data ?? {};
 
 	switch (action) {
 		case 'ask':
+			return truncate(String(payload?.response ?? 'No response returned.'), 160);
+		case 'race':
+			return ((payload?.results ?? []) as any[])
+				.map(r => `${RACE_BACKEND_LABELS[r.backend] ?? r.backend}: ${truncate(String(r.error ? `error - ${r.error}` : r.response || 'no response'), 60)}`)
+				.join('\n');
+		case 'strategize':
 			return truncate(String(payload?.response ?? 'No response returned.'), 160);
 		case 'status':
 			return `Provider ${payload?.provider ?? 'n/a'}\nModel ${payload?.model ?? 'n/a'}\nState ${payload?.needs_setup ? 'setup needed' : 'ready'}`;
@@ -343,6 +355,26 @@ export const detailBodyForEntry = (entry: HistoryEntry, detailMode: DetailMode):
 			].join('\n');
 		case 'ask':
 			return joinSections(String(payload?.response ?? 'No response returned.').trim(), renderToolCalls(payload?.tool_calls ?? []));
+		case 'race':
+			return joinSections(
+				`Query: ${payload?.query ?? ''}`,
+				...((payload?.results ?? []) as any[]).map(r => {
+					const label = RACE_BACKEND_LABELS[r.backend] ?? r.backend;
+					const identity = [r.provider, r.model].filter(Boolean).join('/');
+					const timing = typeof r.duration_ms === 'number' ? `${(r.duration_ms / 1000).toFixed(1)}s` : 'n/a';
+					const stepCount = (r.steps ?? []).length;
+					const header = `${label.toUpperCase()}${identity ? ` (${identity})` : ''} · ${timing}${stepCount ? ` · ${stepCount} step${stepCount === 1 ? '' : 's'}` : ''}`;
+					const body = r.error ? `[x] ${r.error}` : String(r.response || '(no response)').trim();
+					return `${header}\n${body}`;
+				}),
+			);
+		case 'strategize':
+			return joinSections(
+				String(payload?.response ?? 'No response returned.').trim(),
+				payload?.chart_path ? `Chart: ${payload.chart_path}` : '',
+				payload?.backtest_result ? formatStructuredBlock(payload.backtest_result) : '',
+				renderToolCalls(payload?.tool_calls ?? []),
+			);
 		case 'quote':
 			return ((payload?.quotes ?? []) as any[])
 				.map(quote => {
