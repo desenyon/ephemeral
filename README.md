@@ -292,3 +292,89 @@ Build outputs:
 - License: [LICENSE](./LICENSE)
 
 Ephemeral is built for people who want the terminal to feel like a desk, not a prompt.
+
+<!-- architecture-atlas-v5:start -->
+## Architecture Atlas v5
+
+These editable Mermaid diagrams mirror the [Notion architecture dossier](https://app.notion.com/p/3b467342e8c1817dbf62ef0d9d793b93?pvs=204).
+
+### 1. Research-desk anatomy
+
+```mermaid
+flowchart LR
+  USER["Researcher / command dock"] --> SHELL["Ink terminal shell + screen/router state"]
+  SHELL --> WATCH["Watchlist and preference manager"]
+  SHELL --> MARKET["Quote and history adapters"]
+  SHELL --> NEWS["News aggregation"]
+  MARKET --> PACK["Research packet builder<br>values + provider + timestamp + provenance"]
+  NEWS --> PACK
+  PACK --> MODEL["Model router and provider adapters"]
+  MODEL --> ANALYSIS["Hypotheses, risks, citations and explicit generated-analysis boundary"]
+  PACK --> STRAT["Typed strategy schema"]
+  STRAT --> SIGNAL["Signal engine"] --> PORT["Portfolio simulator"] --> COST["Cost/slippage model"] --> METRIC["Performance metrics"]
+  ANALYSIS --> ART["Artifact repository"]
+  METRIC --> CHART["Chart renderer"] --> ART
+  ART --> MANIFEST[("Research packet, prompts, data hashes, run manifest, reports")]
+  HEALTH["Setup health / doctor"] -. provider readiness .-> SHELL
+```
+
+### 2. Evidence-to-backtest wiring
+
+```mermaid
+flowchart TB
+  CMD["symbol / compare / news / strategy / backtest command"] --> RESOLVE["Resolve providers and cache policy"] --> DATA["Fetch timestamped point-in-time market/news evidence"]
+  DATA --> PROV["Attach provenance and staleness status"]
+  PROV --> PACK["Freeze research packet"]
+  PACK --> RESEARCH["Generate analysis with claims separated from evidence"]
+  PACK --> SPEC["Compile typed strategy spec"]
+  SPEC --> HIST["Validate historical data contract and window"] --> SIM["Signals -> positions -> costs -> portfolio path"] --> METRICS["Return, risk, drawdown, turnover and diagnostics"]
+  RESEARCH --> REPORT["Research report with citations and risks"]
+  METRICS --> REPORT
+  REPORT --> SAVE["Persist charts, provider trace, assumptions, hashes and replay manifest"]
+  OUTAGE["Provider outage"] --> FALLBACK["Fallback with preserved provenance or explicit offline degradation"] --> PACK
+```
+
+### 3. Runtime narrative
+
+```mermaid
+sequenceDiagram
+  actor R as Researcher
+  participant T as Terminal Shell
+  participant D as Market / News Services
+  participant M as Model Research Plane
+  participant B as Backtest Engine
+  participant A as Artifact Store
+  R->>T: symbol, compare, news, strategy or backtest command
+  T->>D: resolve providers, cache and freshness policy
+  D-->>T: timestamped data and provenance
+  T->>M: frozen research packet
+  M-->>T: analysis, hypotheses, risks and citations
+  opt strategy or backtest
+    T->>B: typed strategy, data contract and assumptions
+    B->>B: signals, positions, costs, metrics and diagnostics
+    B->>A: run manifest, charts and data hashes
+  end
+  T->>A: report, prompts, provider trace and reproducibility status
+  A-->>R: artifact links and replay instructions
+```
+
+### 4. Reliability model
+
+```mermaid
+stateDiagram-v2
+  [*] --> HOME
+  HOME --> SYMBOL_CONTEXT
+  SYMBOL_CONTEXT --> RESEARCHING
+  RESEARCHING --> GENERATING_STRATEGY
+  GENERATING_STRATEGY --> BACKTESTING
+  SYMBOL_CONTEXT --> COMPARING
+  BACKTESTING --> EXPORTING
+  RESEARCHING --> EXPORTING
+  SYMBOL_CONTEXT --> OFFLINE_DEGRADED: provider unavailable
+  RESEARCHING --> ERROR: ungrounded or malformed result
+  BACKTESTING --> ERROR: invalid data contract or simulation
+  ERROR --> HOME
+  OFFLINE_DEGRADED --> HOME
+```
+
+<!-- architecture-atlas-v5:end -->
