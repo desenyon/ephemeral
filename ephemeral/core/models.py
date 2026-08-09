@@ -474,17 +474,13 @@ def detect_asset_class(symbol: str) -> AssetClass:
     """Auto-detect asset class from symbol."""
     symbol = symbol.upper()
 
-    # Crypto patterns
-    if symbol.endswith(("USD", "USDT", "BTC", "ETH")) or symbol in ["BTC", "ETH", "SOL", "DOGE"]:
-        return AssetClass.CRYPTO
-
     # Forex patterns
     if len(symbol) == 6 and symbol[:3] in ["USD", "EUR", "GBP", "JPY", "CHF", "AUD", "CAD", "NZD"]:
         return AssetClass.FOREX
 
-    # Futures patterns
-    if symbol.startswith(("/", "@")) or symbol.endswith(("F", "Z", "H", "M", "U")) and len(symbol) <= 5:
-        return AssetClass.FUTURE
+    # Crypto patterns
+    if symbol.endswith(("USD", "USDT", "BTC", "ETH")) or symbol in ["BTC", "ETH", "SOL", "DOGE"]:
+        return AssetClass.CRYPTO
 
     # Options (simplified detection)
     if len(symbol) > 10 and any(c.isdigit() for c in symbol):
@@ -498,6 +494,16 @@ def detect_asset_class(symbol: str) -> AssetClass:
     etf_patterns = ["SPY", "QQQ", "IWM", "DIA", "VTI", "VOO", "XL", "IY", "VB", "VG"]
     if any(symbol.startswith(p) for p in etf_patterns):
         return AssetClass.ETF
+
+    # Futures patterns
+    future_months = ("F", "Z", "H", "M", "U")
+    if symbol.startswith(("/", "@")) or (
+        len(symbol) <= 5 and (
+            symbol.endswith(future_months) or
+            (symbol[-1].isdigit() and len(symbol) >= 2 and symbol[-2] in future_months)
+        )
+    ):
+        return AssetClass.FUTURE
 
     # Default to equity
     return AssetClass.EQUITY
