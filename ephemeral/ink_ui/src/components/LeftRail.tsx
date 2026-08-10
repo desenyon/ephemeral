@@ -84,7 +84,7 @@ export const LeftRail = ({
 	}
 
 	return (
-		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'left' || focusPane === 'right' ? 'yellow' : 'gray'} paddingX={1}>
+		<Box width={width} height={height} flexDirection="column" borderStyle="single" borderColor={focusPane === 'left' ? 'yellow' : 'gray'} paddingX={1}>
 			{rows.slice(0, Math.max(1, height - 2))}
 		</Box>
 	);
